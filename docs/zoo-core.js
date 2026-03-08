@@ -35,33 +35,27 @@ export function createZoo(aq, op) {
       .orderby(aq.desc("total_score"));
   }
 
-  function buildTables(csvContent) {
-    const raw = readCsvData(csvContent);
-    const failed = raw.filter(d => d.return_code !== 0);
-    const runs = raw
-      .filter(d => d.elapsed_time_ns !== 0 && d.return_code === 0)
-      .select(aq.not("return_code"));
-    const preprocessed = preprocessData(raw);
-    const benchmarks = addBenchmarkScores(preprocessed);
+  // Compute scores table from runs: engine × benchmark scores, ordered by total
+  function computeScores(runsTable) {
+    const benchmarks = addBenchmarkScores(runsTable);
     const engineScores = getEngineScores(benchmarks);
-
-    const engines = engineScores.array("engine");
     const benchmarkNames = [...new Set(benchmarks.array("benchmark"))].sort();
-    const meta = {
-      numEngines: engines.length,
-      numBenchmarks: benchmarkNames.length,
-      numRuns: runs.numRows()
-    };
 
-    // Pivot: engine x benchmark scores + total_score
-    const scoresPivot = benchmarks
+    return benchmarks
       .groupby("engine")
       .pivot("benchmark", { score: (d) => op.mean(d.score) })
       .join(engineScores, "engine")
-      .orderby(aq.desc("total_score"));
-    const scoresByBenchmark = scoresPivot.select("engine", "total_score", ...benchmarkNames);
+      .orderby(aq.desc("total_score"))
+      .select("engine", "total_score", ...benchmarkNames);
+  }
 
-    // Pivot: engine x benchmark times (seconds)
+  // Compute runtimes table from runs: engine × benchmark times (seconds), ordered by total
+  function computeRuntimes(runsTable) {
+    const benchmarks = addBenchmarkScores(runsTable);
+    const engineScores = getEngineScores(benchmarks);
+    const engines = engineScores.array("engine");
+    const benchmarkNames = [...new Set(benchmarks.array("benchmark"))].sort();
+
     const timesPivot = benchmarks
       .derive({ elapsed_time_s: (d) => d.elapsed_time_ns / 1000000000 })
       .groupby("engine")
@@ -70,14 +64,29 @@ export function createZoo(aq, op) {
       .derive({ elapsed_time_s: (d) => d.elapsed_time_ns / 1000000000 })
       .groupby("engine")
       .rollup({ total_runtime: (d) => op.sum(d.elapsed_time_s) });
-    // Reorder to match engine score ranking
-    const runtimesByBenchmark = aq
+
+    return aq
       .table({ engine: engines })
       .join(timesPivot, "engine")
       .join(engineRuntimes, "engine")
       .select("engine", "total_runtime", ...benchmarkNames);
+  }
 
-    return { raw, runs, failed, benchmarks, engines, benchmarkNames, engineScores, scores: scoresByBenchmark, runtimes: runtimesByBenchmark, meta };
+  function buildTables(csvContent) {
+    const raw = readCsvData(csvContent);
+    const failed = raw.filter(d => d.return_code !== 0);
+    const runs = preprocessData(raw);
+
+    return {
+      raw,
+      runs,
+      failed,
+      benchmarks: addBenchmarkScores(runs),
+      scores: computeScores(runs),
+      runtimes: computeRuntimes(runs),
+      computeScores,
+      computeRuntimes,
+    };
   }
 
   return { buildTables };

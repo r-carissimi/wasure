@@ -80,22 +80,48 @@
     <table>
       <tr><th>Name</th><th>Type</th><th>Description</th></tr>
       <tr><td>raw</td><td>Table</td><td>Original CSV data</td></tr>
-      <tr><td>runs</td><td>Table</td><td>Individual successful runs</td></tr>
+      <tr><td>runs</td><td>Table</td><td>Individual successful runs (use for filtering)</td></tr>
       <tr><td>failed</td><td>Table</td><td>Failed runs (return_code !== 0)</td></tr>
       <tr><td>benchmarks</td><td>Table</td><td>Per-engine, per-benchmark scores</td></tr>
-      <tr><td>scores</td><td>Table</td><td>Pivoted: engine × benchmark scores</td></tr>
-      <tr><td>runtimes</td><td>Table</td><td>Pivoted: engine × benchmark times (seconds)</td></tr>
-      <tr><td>engineScores</td><td>Table</td><td>Total score per engine</td></tr>
-      <tr><td>engines</td><td>Array</td><td>Engine names (ordered by score)</td></tr>
-      <tr><td>benchmarkNames</td><td>Array</td><td>Benchmark names (sorted)</td></tr>
-      <tr><td>meta</td><td>Object</td><td>{ numEngines, numBenchmarks, numRuns }</td></tr>
+      <tr><td>scores</td><td>Table</td><td>Engine × benchmark scores (ordered by total_score)</td></tr>
+      <tr><td>runtimes</td><td>Table</td><td>Engine × benchmark times in seconds (ordered by total)</td></tr>
+      <tr><td>computeScores(runs)</td><td>Function</td><td>Compute scores table from filtered runs</td></tr>
+      <tr><td>computeRuntimes(runs)</td><td>Function</td><td>Compute runtimes table from filtered runs</td></tr>
       <tr><td>aq</td><td>Global</td><td>Arquero library</td></tr>
       <tr><td>op</td><td>Global</td><td>Arquero operators</td></tr>
     </table>
+    <p style="margin:12px 0 0;line-height:1.5"><strong>Scoring:</strong> For each benchmark, the geometric mean time across all engines is computed. 
+      An engine's score for a benchmark is <code>gmean / time</code> (faster = higher). 
+      Total score is the sum across benchmarks.</p>
+    <details style="margin-top:12px">
+      <summary>Filter + Recompute Examples</summary>
+      <pre style="background:var(--bg-row-even);padding:12px;border-radius:6px;overflow-x:auto;font-size:13px">// Exclude engines
+(tables) => {
+  const { runs, computeScores, computeRuntimes } = tables;
+  const filtered = runs.filter(d => d.engine !== 'wasm3');
+  return computeScores(filtered); // or computeRuntimes(filtered)
+}
+
+// Only specific benchmarks
+(tables) => {
+  const { runs, computeScores } = tables;
+  const keep = ['coremark', 'meshoptimizer'];
+  return computeScores(runs.filter(aq.escape(d => keep.includes(d.benchmark))));
+}</pre>
+    </details>
+  </details>
+  <details>
+    <summary>Benchmark Info</summary>
+    <table>
+      <tr><td>OS</td><td>Ubuntu 24.04.4 LTS x86_64</td></tr>
+      <tr><td>Kernel</td><td>6.8.0-38-generic</td></tr>
+      <tr><td>CPU</td><td>Intel i7-14700K (28) @ 5.500GHz</td></tr>
+      <tr><td>RAM</td><td>32 GB</td></tr>
+    </table>
   </details>
   <div id="editor">(tables) => {
-  const { benchmarks, scores, runtimes } = tables;
-  return scores;
+  const { runs, benchmarks, computeScores, computeRuntimes } = tables;
+  return computeScores(runs);
 }</div>
   <button id="run-btn">Run</button>
   <div id="output"><span class="loading">Loading data...</span></div>
