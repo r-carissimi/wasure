@@ -41,7 +41,10 @@ def main():
     args = parser.parse_args()
     setup_logging(level=getattr(logging, args.log_level.upper()))
 
-    if not hasattr(args, "_func"):
+    if not hasattr(args, "_func"):  # pragma: no cover - argparse requires one
+        # setup_subparsers marks the subcommand required, so argparse exits
+        # before reaching this. Kept as a safety net rather than relying on
+        # that remaining true.
         parser.print_help()
         return 1
 
@@ -50,5 +53,5 @@ def main():
     return args._func(args) or 0
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - exercised as a subprocess
     sys.exit(main())

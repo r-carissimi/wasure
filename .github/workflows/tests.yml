@@ -42,7 +42,7 @@ jobs:
         # Agg keeps matplotlib from trying to reach a display.
         env:
           MPLBACKEND: Agg
-        run: pytest
+        run: pytest --cov
 
   cli:
     name: CLI smoke test

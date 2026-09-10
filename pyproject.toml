@@ -29,7 +29,7 @@ dependencies = ["matplotlib", "psutil"]
 dynamic = ["version"]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "pytest-cov"]
 
 [project.urls]
 Homepage = "https://github.com/r-carissimi/wasure"
@@ -50,3 +50,16 @@ include-package-data = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.coverage.run]
+source = ["wasure"]
+
+[tool.coverage.report]
+# Lines that only run when wasure is invoked as a command are covered by
+# subprocess tests, which coverage cannot observe, and are marked
+# "pragma: no cover" at the source.
+exclude_also = ["if __name__ == .__main__.:"]
+# A floor rather than a target: the suite currently covers every reachable
+# line, and this leaves room for a defensive branch without failing the build.
+fail_under = 95
+show_missing = true

@@ -298,3 +298,80 @@ class TestPathResolution:
     ):
         monkeypatch.chdir(tmp_path)
         assert utils.get_absolute_path("x") == os.path.join(str(tmp_path), "x")
+
+
+class TestScoreNormalization:
+    """Benchmarks that report a score are normalized against the best score,
+    not the fastest time, and higher is better."""
+
+    @pytest.fixture
+    def scored(self):
+        return {
+            "strong": {"bench": [{"elapsed_time_ns": 100, "score": 10, "return_code": 0}]},
+            "weak": {"bench": [{"elapsed_time_ns": 200, "score": 5, "return_code": 0}]},
+        }
+
+    def test_score_is_the_chosen_metric(self, scored):
+        stats = plot._compute_statistics(scored)
+        names = plot._collect_benchmarks(stats)
+        assert plot._determine_benchmark_metrics(stats, names, "avg") == {"bench": "score"}
+
+    def test_the_best_score_is_the_baseline(self, scored):
+        stats = plot._compute_statistics(scored)
+        names = plot._collect_benchmarks(stats)
+        metrics = plot._determine_benchmark_metrics(stats, names, "median")
+        raw = plot._transpose_benchmark_data(stats, names, metrics)
+        data = plot._normalize_values(names, metrics, raw, "median")
+        assert data["strong"]["values"]["bench"] == pytest.approx(100.0)
+        assert data["weak"]["values"]["bench"] == pytest.approx(50.0)
+
+    def test_it_plots(self, tmp_path, scored):
+        source = tmp_path / "r.json"
+        source.write_text(json.dumps(scored))
+        plot.main(
+            SimpleNamespace(
+                results_file=str(source),
+                plots_folder=str(tmp_path / "p"),
+                log_level="ERROR",
+                statistic="median",
+            )
+        )
+        assert (tmp_path / "p" / "r.png").exists()
+
+
+class TestEmptyResults:
+    """A results file can be well formed but contain nothing usable."""
+
+    def _args(self, path, tmp_path, **extra):
+        base = dict(
+            results_file=str(path), log_level="ERROR", statistic="median",
+            plots_folder=str(tmp_path / "p"), csv_folder=str(tmp_path / "c"),
+            memory=False,
+        )
+        base.update(extra)
+        return SimpleNamespace(**base)
+
+    def test_plot_fails_on_a_missing_file(self, tmp_path):
+        assert plot.main(self._args(tmp_path / "absent.json", tmp_path)) == 1
+
+    def test_export_fails_on_a_missing_file(self, tmp_path):
+        assert export.main(self._args(tmp_path / "absent.json", tmp_path)) == 1
+
+    def test_plot_fails_when_the_envelope_holds_no_measurements(self, tmp_path):
+        path = tmp_path / "r.json"
+        path.write_text(json.dumps({utils.RESULTS_SCHEMA_KEY: 1, "results": {}}))
+        assert plot.main(self._args(path, tmp_path)) == 1
+
+    def test_export_fails_when_the_envelope_holds_no_measurements(self, tmp_path):
+        path = tmp_path / "r.json"
+        path.write_text(json.dumps({utils.RESULTS_SCHEMA_KEY: 1, "results": {}}))
+        assert export.main(self._args(path, tmp_path)) == 1
+
+    def test_plot_fails_when_every_run_failed(self, tmp_path):
+        """Nothing has a usable time, so there is no plot to draw."""
+
+        path = tmp_path / "r.json"
+        path.write_text(
+            json.dumps({"e": {"b": [{"elapsed_time_ns": 0, "score": 0, "return_code": 1}]}})
+        )
+        assert plot.main(self._args(path, tmp_path)) == 1

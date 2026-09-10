@@ -478,7 +478,9 @@ def _compile_benchmark(benchmark, runtime, benchmarks_folder, runtimes_folder):
 
     precompiled_path = os.path.splitext(benchmark_path)[0] + ".aot"
 
-    if runtime["aot-command"]:
+    # Most runtimes have no AOT step, and the docstring promises None for
+    # those, so read the key rather than indexing it.
+    if runtime.get("aot-command"):
         aot_command = runtime["aot-command"].format(
             input=f'"{benchmark_path}"', output=f'"{precompiled_path}"'
         )

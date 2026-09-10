@@ -128,3 +128,26 @@ class TestListingRuntimes:
     def test_named_lookup(self, runtimes_file):
         assert runtimes.get_runtime_from_name("engine", runtimes_file)["name"] == "engine"
         assert runtimes.get_runtime_from_name("absent", runtimes_file) is None
+
+
+class TestManifestEdgeCases:
+    def test_a_manifest_with_an_empty_benchmark_list_is_skipped(
+        self, benchmarks_folder
+    ):
+        """Valid JSON declaring no benchmarks is different from an empty file."""
+
+        group = os.path.join(benchmarks_folder, "declared-empty")
+        os.makedirs(group)
+        with open(os.path.join(group, "benchmarks.json"), "w") as f:
+            json.dump({"benchmarks": []}, f)
+        assert "declared-empty" not in benchmarks.list_benchmarks(benchmarks_folder)
+
+    def test_a_qualified_name_in_an_unknown_group_returns_nothing(
+        self, benchmarks_folder
+    ):
+        """Distinct from an unknown bare name: the group is checked first."""
+
+        assert (
+            benchmarks.get_benchmark_from_name("absent-group/one", benchmarks_folder)
+            is None
+        )

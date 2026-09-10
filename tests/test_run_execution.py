@@ -414,3 +414,34 @@ def test_shell_commands_round_trip(benchmark, benchmarks_folder, command, expect
         benchmark, make_runtime(command=command), benchmarks_folder
     )
     assert return_code == expected
+
+
+class TestProcessTreeKill:
+    def test_killing_an_already_dead_process_is_not_an_error(self):
+        """The payload usually exits on its own between the timeout check and
+        the kill, so both the group signal and the direct kill must tolerate
+        the process being gone."""
+
+        class AlreadyGone:
+            # A pid that cannot exist, so os.getpgid raises.
+            pid = 2**22 - 1
+
+            def kill(self):
+                raise ProcessLookupError
+
+        run._kill_process_tree(AlreadyGone())
+
+
+class TestAheadOfTimeCompilationSkipped:
+    def test_a_runtime_without_an_aot_command_compiles_nothing(
+        self, benchmark, benchmarks_folder
+    ):
+        assert (
+            run._compile_benchmark(
+                benchmark,
+                make_runtime(command="true"),
+                benchmarks_folder,
+                benchmarks_folder,
+            )
+            is None
+        )
