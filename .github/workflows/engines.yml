@@ -1,0 +1,74 @@
+name: Engine health
+
+# Installers run vendor scripts that fetch the latest release, so an upstream
+# change can break them without anything in this repository changing. Nothing
+# in tests.yml can catch that -- only actually installing an engine can. This
+# is also the groundwork for scheduled re-runs of the published results.
+#
+# Runs weekly rather than per-push because it downloads and builds engines.
+
+on:
+  schedule:
+    # Mondays, 04:00 UTC.
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      runtimes:
+        description: "Space-separated runtime names (blank means the default set)"
+        required: false
+        type: string
+
+jobs:
+  audit:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install
+        run: python -m pip install --upgrade pip && pip install -e .
+
+      - name: Audit installers
+        id: audit
+        # These install from prebuilt binaries in a couple of minutes each.
+        # Engines that build from source (the wamr variants, wasmi, wizard)
+        # are deliberately excluded to keep this job inside its time budget;
+        # add them here once a longer-running job is worth the minutes.
+        run: |
+          runtimes="${{ inputs.runtimes }}"
+          if [ -z "$runtimes" ]; then
+            runtimes="wasmtime wasmedge wasmer wazero wasm3"
+          fi
+          echo "Auditing: $runtimes"
+          python scripts/audit_installers.py $runtimes \
+            --benchmarks dummy helloworld \
+            | tee audit.log
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "### Engine health on ${{ matrix.os }}"
+            echo
+            echo '```'
+            cat audit.log 2>/dev/null || echo "the audit produced no output"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-${{ matrix.os }}
+          path: audit.log
+          if-no-files-found: ignore

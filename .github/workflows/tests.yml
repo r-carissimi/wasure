@@ -1,0 +1,119 @@
+name: Tests
+
+# Fast checks that need no WebAssembly engine, so they can gate every push.
+# Engine drift is covered separately by engines.yml, which runs on a schedule.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.9", "3.13"]
+        include:
+          # pyproject declares requires-python >= 3.8, so test that floor
+          # rather than only the versions we happen to develop on. 3.8 is not
+          # available on the ubuntu-latest image, hence the pinned runner.
+          - os: ubuntu-22.04
+            python-version: "3.8"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+
+      - name: Run tests
+        # Agg keeps matplotlib from trying to reach a display.
+        env:
+          MPLBACKEND: Agg
+        run: pytest
+
+  cli:
+    name: CLI smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install from the built wheel
+        # Installing the wheel rather than the source tree also checks that
+        # the benchmarks and installers are actually packaged, and that the
+        # version resolves from wasure.wasure.VERSION_NUMBER.
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel
+          pip install dist/*.whl
+
+      - name: Commands respond
+        run: |
+          wasure --version
+          wasure benchmarks list
+          wasure runtimes available
+          wasure runtimes list
+
+      - name: Packaged data is present
+        run: |
+          python - <<'PY'
+          import pathlib, wasure
+          root = pathlib.Path(wasure.__file__).parent
+          installers = list((root / "installers").glob("*.json"))
+          payloads = list((root / "benchmarks").rglob("*.wasm"))
+          print(f"{len(installers)} installers, {len(payloads)} payloads")
+          assert len(installers) >= 15, "installers missing from the wheel"
+          assert len(payloads) >= 100, "benchmark payloads missing from the wheel"
+          PY
+
+  docs:
+    name: Benchmark explorer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Data pipeline test
+        run: npm test
+
+      - name: Published CSV is well formed
+        # The site reads this file directly, so a malformed commit breaks it
+        # with no other warning.
+        run: |
+          python - <<'PY'
+          import csv
+          with open("docs/wasure-results.csv") as f:
+              rows = list(csv.DictReader(f))
+          expected = {
+              "benchmark", "runtime", "run_index",
+              "elapsed_time_ns", "score", "return_code",
+          }
+          assert expected <= set(rows[0]), f"unexpected columns: {rows[0].keys()}"
+          for i, row in enumerate(rows, start=2):
+              int(row["elapsed_time_ns"])
+              int(row["return_code"])
+              int(row["run_index"])
+          print(f"{len(rows)} rows, {len({r['runtime'] for r in rows})} engines")
+          PY
