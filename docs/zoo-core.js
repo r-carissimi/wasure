@@ -28,12 +28,17 @@ export function createZoo(aq, op) {
   // computed over raw rows, an engine run more times than the others would
   // contribute proportionally more to the per-benchmark baseline.
   function collapseRepeats(table) {
-    return table
-      .groupby("engine", "benchmark")
-      .rollup({
-        elapsed_time_ns: (d) => op.median(d.elapsed_time_ns),
-        runs: op.count(),
-      });
+    // Group by version as well when the CSV carries it. The version is
+    // constant per engine so this does not split any engine's rows, but it
+    // keeps the column available downstream. Older CSVs predate the column.
+    const keys = table.columnNames().includes("runtime_version")
+      ? ["engine", "benchmark", "runtime_version"]
+      : ["engine", "benchmark"];
+
+    return table.groupby(...keys).rollup({
+      elapsed_time_ns: (d) => op.median(d.elapsed_time_ns),
+      runs: op.count(),
+    });
   }
 
   function addBenchmarkScores(table) {
@@ -45,10 +50,15 @@ export function createZoo(aq, op) {
       .rollup({ gmean_elapsed_ns: (d) => op.exp(op.mean(op.log(d.elapsed_time_ns))) });
 
     // Join and calculate speedup score
-    return collapsed
+    const scored = collapsed
       .join(benchmarkStats, "benchmark")
-      .derive({ score: (d) => d.gmean_elapsed_ns / d.elapsed_time_ns })
-      .select("engine", "benchmark", "elapsed_time_ns", "score", "runs");
+      .derive({ score: (d) => d.gmean_elapsed_ns / d.elapsed_time_ns });
+
+    const columns = ["engine", "benchmark", "elapsed_time_ns", "score", "runs"];
+    if (scored.columnNames().includes("runtime_version")) {
+      columns.splice(1, 0, "runtime_version");
+    }
+    return scored.select(...columns);
   }
 
   function getEngineScores(table) {
@@ -95,12 +105,26 @@ export function createZoo(aq, op) {
       .select("engine", "total_runtime", ...benchmarkNames);
   }
 
+  // One row per engine with the version that produced its numbers, so the
+  // page can state which build was measured. Empty when the CSV predates the
+  // column.
+  function engineVersions(table) {
+    if (!table.columnNames().includes("runtime_version")) {
+      return aq.table({ engine: [], runtime_version: [] });
+    }
+    return table
+      .groupby("engine", "runtime_version")
+      .count()
+      .select("engine", "runtime_version");
+  }
+
   function buildTables(csvContent) {
     const raw = readCsvData(csvContent);
     const failed = raw.filter(d => d.return_code !== 0);
     const runs = preprocessData(raw);
 
     return {
+      versions: engineVersions(raw),
       raw,
       runs,
       failed,

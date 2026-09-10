@@ -289,7 +289,12 @@ def main(args):
     args.results_file = utils.get_absolute_path(args.results_file)
     args.plots_folder = utils.get_absolute_path(args.plots_folder)
 
-    results = utils.load_results_file(args.results_file)
+    document = utils.load_results_file(args.results_file)
+    if not document:
+        logging.error("No results found in the file.")
+        return 1
+
+    results, _ = utils.split_results(document)
     if not results:
         logging.error("No results found in the file.")
         return 1

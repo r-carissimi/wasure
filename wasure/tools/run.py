@@ -8,6 +8,7 @@ runtimes to use, and saves the results to a specified folder.
 import json
 import logging
 import os
+import platform
 import re
 import signal
 import subprocess
@@ -529,6 +530,14 @@ def _new_results_filename(folder=utils.DEFAULT_RESULTS_FOLDER):
     return filename
 
 
+def _wrap_results(results, metadata=None):
+    """Combine measurements with their metadata into one results document."""
+
+    if not metadata:
+        return results
+    return {**metadata, "results": results}
+
+
 def _save_results_to_file(results, filename):
     """Write results to filename, replacing any previous content.
 
@@ -581,6 +590,69 @@ def get_runtimes(runtimes_file, chosen_runtimes):
     return _filter_runtimes_by_name(chosen_runtimes, flattened_runtimes)
 
 
+def get_runtime_versions(runtimes_file, runtimes_folder):
+    """Record the engine version behind every runtime name.
+
+    Without this a results file cannot be reproduced or even dated: there is
+    no way to tell whether a change between two runs came from the engine, the
+    benchmark or the machine.
+
+    Subruntimes are alternate configurations of the same installed engine --
+    a different backend or compilation mode -- so they do not have a
+    version-command of their own and report their parent's version.
+
+    Returns:
+        dict: Runtime name to version string, or None where the version could
+              not be determined.
+    """
+
+    versions = {}
+
+    for runtime in runtimes.list_runtimes(file=runtimes_file):
+        version = None
+        command = runtime.get("version-command")
+        if command:
+            reported = runtimes._get_runtime_version(command, runtimes_folder)
+            # Only the first line is meaningful; engines often follow it with
+            # build details or a banner.
+            if reported:
+                version = reported.splitlines()[0].strip() or None
+        if version is None:
+            logging.warning(
+                f"Could not determine the version of {runtime['name']}. "
+                "It will be recorded as unknown."
+            )
+
+        versions[runtime["name"]] = version
+        for subruntime in runtime.get("subruntimes", []):
+            versions[subruntime["name"]] = version
+
+    return versions
+
+
+def _build_metadata(runtime_versions, selected_runtimes):
+    """Assemble the metadata stored alongside a run's measurements."""
+
+    from ..wasure import VERSION_NUMBER
+
+    return {
+        utils.RESULTS_SCHEMA_KEY: utils.RESULTS_SCHEMA_VERSION,
+        "wasure-version": VERSION_NUMBER,
+        "created": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "platform": {
+            "system": platform.system(),
+            "release": platform.release(),
+            "machine": platform.machine(),
+            "processor": platform.processor() or None,
+            "cpu-count": os.cpu_count(),
+        },
+        "runtimes": {
+            name: {"version": runtime_versions.get(name)}
+            for name in selected_runtimes
+        },
+    }
+
+
 def _run_benchmarks(
     runtimes_list,
     benchmarks_list,
@@ -591,6 +663,7 @@ def _run_benchmarks(
     pool_memory=False,
     timeout_seconds=None,
     results_file=None,
+    metadata=None,
 ):
     """Runs benchmarks for each runtime and collects results.
 
@@ -621,7 +694,7 @@ def _run_benchmarks(
             )
 
             if results_file:
-                _save_results_to_file(results, results_file)
+                _save_results_to_file(_wrap_results(results, metadata), results_file)
 
     return results
 
@@ -707,6 +780,10 @@ def main(args):
     results_folder = utils.get_absolute_path(args.results_folder)
     runtimes_folder = utils.get_absolute_path(args.runtimes_folder)
 
+    # Record engine versions before running anything, so the results say
+    # which build produced them.
+    versions = get_runtime_versions(runtimes_file, runtimes_folder)
+
     # Loads the runtimes
     runtimes_list = get_runtimes(runtimes_file, args.runtimes)
     logging.debug(f"Using runtimes: {[r['name'] for r in runtimes_list]}")
@@ -727,6 +804,8 @@ def main(args):
     # name is fixed up front rather than when the sweep finishes.
     results_file = _new_results_filename(results_folder)
 
+    metadata = _build_metadata(versions, [r["name"] for r in runtimes_list])
+
     # Run benchmarks
     results = _run_benchmarks(
         runtimes_list,
@@ -738,8 +817,9 @@ def main(args):
         args.memory,
         args.timeout,
         results_file,
+        metadata,
     )
 
     # Save results
-    _save_results_to_file(results, results_file)
+    _save_results_to_file(_wrap_results(results, metadata), results_file)
     logging.info(f"Results saved to {results_file}")

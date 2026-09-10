@@ -135,6 +135,60 @@ check(
   `got ${repeated.scores.numRows()}`,
 );
 
+// Engine versions are carried through when the CSV has them, and their
+// absence must not break anything: the committed CSV predates the column.
+const versionedCsv = [
+  "benchmark,runtime,runtime_version,run_index,elapsed_time_ns,score,return_code",
+  "b,engineA,engineA 1.2.3,1,100,0,0",
+  "b,engineA,engineA 1.2.3,2,120,0,0",
+  "b,engineB,,1,200,0,0",
+].join("\n");
+const versioned = buildTables(versionedCsv);
+
+check(
+  "versions lists one row per engine",
+  versioned.versions.numRows() === 2,
+  `got ${versioned.versions.numRows()}`,
+);
+const byEngine = Object.fromEntries(
+  versioned.versions.objects().map((r) => [r.engine, r.runtime_version]),
+);
+check(
+  "the recorded version is reported",
+  byEngine.engineA === "engineA 1.2.3",
+  `got ${byEngine.engineA}`,
+);
+check(
+  "an unknown version stays empty rather than being invented",
+  !byEngine.engineB,
+  `got ${byEngine.engineB}`,
+);
+check(
+  "the version survives into the per-benchmark table",
+  versioned.benchmarks.columnNames().includes("runtime_version"),
+  versioned.benchmarks.columnNames().join(", "),
+);
+check(
+  "grouping by version does not split an engine's repeats",
+  versioned.benchmarks.numRows() === 2,
+  `got ${versioned.benchmarks.numRows()} rows for 2 engines`,
+);
+check(
+  "repeats still collapse when a version column is present",
+  versioned.benchmarks.objects().find((r) => r.engine === "engineA")?.runs === 2,
+);
+
+// A CSV without the column must still produce a working leaderboard.
+check(
+  "versions is empty for a CSV without the column",
+  tables.versions?.numRows() === 0,
+  `got ${tables.versions?.numRows()}`,
+);
+check(
+  "the per-benchmark table omits the column when absent",
+  !tables.benchmarks?.columnNames().includes("runtime_version"),
+);
+
 // computeScores must be recomputable from a filtered subset, which is the
 // documented way to exclude an engine from the leaderboard.
 const engines = [...new Set(tables.runs?.array("engine") ?? [])];

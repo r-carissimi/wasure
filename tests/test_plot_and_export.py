@@ -198,6 +198,13 @@ class TestCsvExport:
         with open(path) as f:
             return list(csv.reader(f))
 
+    def rows(self, path):
+        """Read rows keyed by column name, so adding a column cannot silently
+        shift what a test is asserting about."""
+
+        with open(path) as f:
+            return list(csv.DictReader(f))
+
     def test_column_order_matches_the_header(self, tmp_path, results):
         """The results dict is nested runtime-then-benchmark while the CSV
         lists benchmark first, so the two are easy to transpose by mistake."""
@@ -214,9 +221,13 @@ class TestCsvExport:
     def test_one_row_per_run_with_a_one_based_index(self, tmp_path, results):
         out = str(tmp_path / "out.csv")
         export._write_benchmark_results_to_csv(results, out, memory=False)
-        rows = self.read(out)[1:]
+        rows = self.rows(out)
         assert len(rows) == 5
-        indices = [r[2] for r in rows if r[0] == "one" and r[1] == "fast"]
+        indices = [
+            r["run_index"]
+            for r in rows
+            if r["benchmark"] == "one" and r["runtime"] == "fast"
+        ]
         assert indices == ["1", "2"]
 
     def test_memory_columns_only_when_requested(self, tmp_path, results):
@@ -262,7 +273,7 @@ class TestCsvExport:
         }
         out = str(tmp_path / "out.csv")
         export._write_benchmark_results_to_csv(data, out, memory=False)
-        codes = {r[0]: r[5] for r in self.read(out)[1:]}
+        codes = {r["benchmark"]: r["return_code"] for r in self.rows(out)}
         assert codes == {"timeout": "-1001", "invalid": "-1002"}
 
 

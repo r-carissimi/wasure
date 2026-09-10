@@ -186,12 +186,35 @@ When you export benchmark results to CSV, each row contains the following column
 |-------------------|------------------------------------------------------------|
 | `benchmark`       | Name of the benchmark or WebAssembly file                  |
 | `runtime`         | Name of the runtime used                                   |
+| `runtime_version` | Version the runtime reported, empty if unknown              |
 | `run_index`       | Index of the run (for repeated benchmarks)                 |
 | `elapsed_time_ns` | Execution time in nanoseconds                              |
 | `score`           | Benchmark-specific score (if applicable, else 0)           | 
 | `return_code`     | Process return code (0 means success)                      |
 | `max_rss_bytes`   | Maximum resident set size in bytes, if `--memory` is set   |
 | `max_vms_bytes`   | Maximum virtual memory size in bytes, if `--memory` is set |
+
+##### Recorded metadata
+
+Alongside the measurements, a results file records which engine builds produced
+them, the WASURE version, when the run started and what machine it ran on. This
+is what makes a result reproducible, and what lets a change between two runs be
+attributed to the engine rather than the benchmark or the hardware.
+
+```json
+{
+    "wasure-results-version": 1,
+    "wasure-version": "0.9",
+    "created": "2026-09-10T14:31:07+0200",
+    "platform": { "system": "Linux", "machine": "x86_64", "cpu-count": 28 },
+    "runtimes": { "wasmtime": { "version": "wasmtime 48.0.1 (7bac2c277 2026-08-24)" } },
+    "results": { "wasmtime": { "helloworld": [ { "elapsed_time_ns": 1234, "...": "..." } ] } }
+}
+```
+
+Results files written before this existed are a bare mapping of runtime name to
+benchmarks; `plot` and `export` still read them, and the version column is left
+empty for their rows.
 
 ##### Return codes
 

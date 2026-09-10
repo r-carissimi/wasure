@@ -38,7 +38,7 @@ def parse(parser):
     return parser
 
 
-def _write_benchmark_results_to_csv(data, filename, memory):
+def _write_benchmark_results_to_csv(data, filename, memory, versions=None):
     """
     Writes every run of benchmark results to a CSV file.
 
@@ -60,6 +60,9 @@ def _write_benchmark_results_to_csv(data, filename, memory):
                      keys are runtime names.
         filename (str): The name of the CSV file to write to.
         memory (bool): If True, include memory usage in the CSV.
+        versions (dict): Runtime name to engine version. Rows get an empty
+                         version when it is unknown, which is the case for
+                         results files recorded before versions were kept.
     """
 
     logging.debug("Exporting every run to CSV")
@@ -71,6 +74,7 @@ def _write_benchmark_results_to_csv(data, filename, memory):
         headers = [
             "benchmark",
             "runtime",
+            "runtime_version",
             "run_index",
             "elapsed_time_ns",
             "score",
@@ -87,6 +91,7 @@ def _write_benchmark_results_to_csv(data, filename, memory):
                     row = [
                         benchmark,
                         runtime,
+                        (versions or {}).get(runtime) or "",
                         run_index + 1,
                         run.get("elapsed_time_ns", ""),
                         run.get("score", ""),
@@ -108,9 +113,14 @@ def main(args):
     args.results_file = utils.get_absolute_path(args.results_file)
     args.csv_folder = utils.get_absolute_path(args.csv_folder)
 
-    results = utils.load_results_file(args.results_file)
+    document = utils.load_results_file(args.results_file)
+    if not document:
+        return 1
+
+    results, metadata = utils.split_results(document)
     if not results:
         return 1
+    versions = utils.runtime_versions(metadata)
 
     # CSV filename is the same as the results file, but with a .csv extension
     filename = os.path.join(
@@ -118,4 +128,4 @@ def main(args):
         os.path.splitext(os.path.basename(args.results_file))[0] + ".csv",
     )
 
-    _write_benchmark_results_to_csv(results, filename, args.memory)
+    _write_benchmark_results_to_csv(results, filename, args.memory, versions)
