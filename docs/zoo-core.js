@@ -15,17 +15,40 @@ export function createZoo(aq, op) {
       .filter(d => d.engine !== 'wasmer-aot');
   }
 
+  // Collapse repeated runs of the same engine and benchmark to one row.
+  //
+  // The median is used rather than the mean because timing distributions are
+  // right-skewed: a run can be slowed arbitrarily by unrelated load, but never
+  // made faster than the machine allows. Measured on this suite, a fast engine
+  // on a short benchmark varied by 4.6x across ten repeats while a slow one
+  // varied by 1.06x, so the mean would be dragged by whichever engine happened
+  // to be interrupted.
+  //
+  // Collapsing first also matters for correctness of the geometric mean below:
+  // computed over raw rows, an engine run more times than the others would
+  // contribute proportionally more to the per-benchmark baseline.
+  function collapseRepeats(table) {
+    return table
+      .groupby("engine", "benchmark")
+      .rollup({
+        elapsed_time_ns: (d) => op.median(d.elapsed_time_ns),
+        runs: op.count(),
+      });
+  }
+
   function addBenchmarkScores(table) {
+    const collapsed = collapseRepeats(table);
+
     // Calculate geometric mean per benchmark: exp(mean(ln(x)))
-    const benchmarkStats = table
+    const benchmarkStats = collapsed
       .groupby("benchmark")
       .rollup({ gmean_elapsed_ns: (d) => op.exp(op.mean(op.log(d.elapsed_time_ns))) });
 
     // Join and calculate speedup score
-    return table
+    return collapsed
       .join(benchmarkStats, "benchmark")
       .derive({ score: (d) => d.gmean_elapsed_ns / d.elapsed_time_ns })
-      .select("engine", "benchmark", "elapsed_time_ns", "score");
+      .select("engine", "benchmark", "elapsed_time_ns", "score", "runs");
   }
 
   function getEngineScores(table) {

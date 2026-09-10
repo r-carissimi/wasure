@@ -11,13 +11,24 @@ from wasure.tools import export, plot, utils
 
 
 class TestStatistics:
-    def test_average_min_and_max_per_benchmark(self, results):
+    def test_summary_per_benchmark(self, results):
         stats = plot._compute_statistics(results)
         assert stats["fast"]["one"]["elapsed_time_ns"] == {
             "avg": 1100.0,
+            "median": 1100.0,
             "min": 1000,
             "max": 1200,
         }
+
+    def test_median_resists_an_outlier_that_drags_the_mean(self):
+        """The reason median is the default: a run can be slowed by unrelated
+        load but never made faster, so timings are right-skewed."""
+
+        runs = [{"elapsed_time_ns": ns, "score": 0, "return_code": 0}
+                for ns in (100, 105, 110, 115, 2000)]
+        elapsed = plot._compute_statistics({"e": {"b": runs}})["e"]["b"]["elapsed_time_ns"]
+        assert elapsed["median"] == 110
+        assert elapsed["avg"] > 400
 
     def test_zero_timings_are_excluded(self):
         stats = plot._compute_statistics(
@@ -39,6 +50,64 @@ class TestStatistics:
             {"broken": {"bench": [{"elapsed_time_ns": 0, "score": 0, "return_code": 1}]}}
         )
         assert stats == {}
+
+
+class TestStatisticSelection:
+    """--statistic picks which summary is plotted."""
+
+    @pytest.fixture
+    def skewed(self):
+        # One outlier run, so mean, median and min all differ.
+        return {
+            "engine": {
+                "bench": [
+                    {"elapsed_time_ns": ns, "score": 0, "return_code": 0}
+                    for ns in (100, 110, 120, 3000)
+                ]
+            }
+        }
+
+    @pytest.mark.parametrize(
+        "name,expected", [("min", 100), ("median", 115.0), ("mean", 832.5)]
+    )
+    def test_each_statistic_is_plotted(self, tmp_path, skewed, name, expected):
+        stats = plot._compute_statistics(skewed)
+        key = plot.STATISTICS[name]
+        names = plot._collect_benchmarks(stats)
+        metrics = plot._determine_benchmark_metrics(stats, names, key)
+        raw = plot._transpose_benchmark_data(stats, names, metrics)
+        data = plot._absolute_values(names, raw, key)
+        assert data["engine"]["values"]["bench"] == pytest.approx(expected)
+
+    def test_median_is_the_default(self, tmp_path, skewed):
+        source = tmp_path / "r.json"
+        source.write_text(json.dumps(skewed))
+        # No statistic attribute at all, as an older caller would pass.
+        plot.main(
+            SimpleNamespace(
+                results_file=str(source),
+                plots_folder=str(tmp_path / "p"),
+                log_level="ERROR",
+            )
+        )
+        assert (tmp_path / "p" / "r.png").exists()
+
+    def test_error_bars_are_never_negative(self, skewed):
+        """With min as the plotted value the lower bar would otherwise go
+        negative, which matplotlib renders as a bar pointing the wrong way."""
+
+        stats = plot._compute_statistics(skewed)
+        names = plot._collect_benchmarks(stats)
+        metrics = plot._determine_benchmark_metrics(stats, names, "min")
+        raw = plot._transpose_benchmark_data(stats, names, metrics)
+        for builder in (plot._absolute_values, plot._normalize_values):
+            data = (
+                builder(names, raw, "min")
+                if builder is plot._absolute_values
+                else builder(names, metrics, raw, "min")
+            )
+            low, high = data["engine"]["errors"]["bench"]
+            assert low >= 0 and high >= 0
 
 
 class TestMetricSelection:

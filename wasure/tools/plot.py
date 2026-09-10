@@ -2,10 +2,14 @@
 
 import logging
 import os
+import statistics as statistics_module
 
 import matplotlib.pyplot as plt
 
 from . import utils
+
+# Names offered by --statistic, mapped to the keys _compute_statistics emits.
+STATISTICS = {"mean": "avg", "median": "median", "min": "min"}
 
 
 def parse(parser):
@@ -25,6 +29,17 @@ def parse(parser):
         "--plots-folder",
         default=os.path.join(script_dir, utils.DEFAULT_PLOTS_FOLDER),
         help=f"Path to the folder where plots will be saved (default: {utils.DEFAULT_PLOTS_FOLDER})",
+    )
+
+    parser.add_argument(
+        "--statistic",
+        default="median",
+        choices=sorted(STATISTICS),
+        help="""Which statistic to plot when a benchmark was repeated.
+            Timing distributions are right-skewed, since a run can be slowed
+            by unrelated load but never made faster than the machine allows,
+            so the median is more representative than the mean.
+            (default: median)""",
     )
 
     utils.add_log_level_argument(parser)
@@ -49,11 +64,13 @@ def _compute_statistics(results):
             statistics[runtime][benchmark] = {
                 "elapsed_time_ns": {
                     "avg": sum(elapsed_times) / len(elapsed_times),
+                    "median": statistics_module.median(elapsed_times),
                     "min": min(elapsed_times),
                     "max": max(elapsed_times),
                 },
                 "score": {
                     "avg": sum(scores) / len(scores),
+                    "median": statistics_module.median(scores),
                     "min": min(scores),
                     "max": max(scores),
                 },
@@ -75,7 +92,7 @@ def _collect_benchmarks(results):
     return sorted(benchmarks_set)
 
 
-def _determine_benchmark_metrics(results, benchmarks_list):
+def _determine_benchmark_metrics(results, benchmarks_list, statistic="avg"):
     """Determine the metric to use for each benchmark.
     If any runtime has a score > 0, use score; otherwise, use elapsed_time_ns.
     """
@@ -83,7 +100,7 @@ def _determine_benchmark_metrics(results, benchmarks_list):
     benchmark_metrics = {}
     for benchmark in benchmarks_list:
         use_score = any(
-            results[runtime][benchmark]["score"]["avg"] > 0
+            results[runtime][benchmark]["score"][statistic] > 0
             for runtime in results
             if benchmark in results[runtime]
         )
@@ -142,7 +159,7 @@ def _empty_runtime_data(benchmarks_list, raw_values):
     }
 
 
-def _normalize_values(benchmarks_list, benchmark_metrics, raw_values):
+def _normalize_values(benchmarks_list, benchmark_metrics, raw_values, statistic="avg"):
     """Normalize raw values for each benchmark.
 
     For scores, normalize by the maximum value.
@@ -152,10 +169,13 @@ def _normalize_values(benchmarks_list, benchmark_metrics, raw_values):
     runtime_data = _empty_runtime_data(benchmarks_list, raw_values)
     for benchmark in benchmarks_list:
         values = {
-            runtime: data["avg"] for runtime, data in raw_values[benchmark].items()
+            runtime: data[statistic] for runtime, data in raw_values[benchmark].items()
         }
         errors = {
-            runtime: (data["avg"] - data["min"], data["max"] - data["avg"])
+            runtime: (
+                max(0, data[statistic] - data["min"]),
+                max(0, data["max"] - data[statistic]),
+            )
             for runtime, data in raw_values[benchmark].items()
         }
         if benchmark_metrics[benchmark] == "score":
@@ -201,16 +221,16 @@ def _all_benchmarks_single_runtime(statistics, benchmarks_list):
     return True
 
 
-def _absolute_values(benchmarks_list, raw_values):
+def _absolute_values(benchmarks_list, raw_values, statistic="avg"):
     """Prepare absolute values for plotting (no normalization)."""
 
     runtime_data = _empty_runtime_data(benchmarks_list, raw_values)
     for benchmark in benchmarks_list:
         for runtime, data in raw_values[benchmark].items():
-            runtime_data[runtime]["values"][benchmark] = data["avg"]
+            runtime_data[runtime]["values"][benchmark] = data[statistic]
             runtime_data[runtime]["errors"][benchmark] = (
-                data["avg"] - data["min"],
-                data["max"] - data["avg"],
+                max(0, data[statistic] - data["min"]),
+                max(0, data["max"] - data[statistic]),
             )
     return runtime_data
 
@@ -274,6 +294,8 @@ def main(args):
         logging.error("No results found in the file.")
         return 1
 
+    statistic = STATISTICS[getattr(args, "statistic", "median")]
+
     statistics = _compute_statistics(results)
     # Avoids empty plots
     if not statistics:
@@ -281,17 +303,22 @@ def main(args):
         return 1
 
     benchmarks_list = _collect_benchmarks(statistics)
-    benchmark_metrics = _determine_benchmark_metrics(statistics, benchmarks_list)
+    benchmark_metrics = _determine_benchmark_metrics(
+        statistics, benchmarks_list, statistic
+    )
     raw_values = _transpose_benchmark_data(
         statistics, benchmarks_list, benchmark_metrics
     )
 
+    label = getattr(args, "statistic", "median")
     if _all_benchmarks_single_runtime(statistics, benchmarks_list):
-        runtime_data = _absolute_values(benchmarks_list, raw_values)
-        ylabel = "Absolute Metric Value"
+        runtime_data = _absolute_values(benchmarks_list, raw_values, statistic)
+        ylabel = f"Absolute Metric Value ({label} of runs)"
     else:
-        runtime_data = _normalize_values(benchmarks_list, benchmark_metrics, raw_values)
-        ylabel = "Normalized Metric Value (%)"
+        runtime_data = _normalize_values(
+            benchmarks_list, benchmark_metrics, raw_values, statistic
+        )
+        ylabel = f"Normalized Metric Value (%, {label} of runs)"
 
     _plot_results(
         runtime_data,

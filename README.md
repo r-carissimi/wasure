@@ -161,9 +161,22 @@ Plot or export results with:
 # Plot benchmark output
 wasure plot /path/to/results/2025-05-06_10-56-21.json
 
+# Plot the mean of repeated runs instead of the median
+wasure plot /path/to/results/2025-05-06_10-56-21.json --statistic mean
+
 # Export results to CSV
 wasure export /path/to/results/2025-05-06_10-56-21.json
 ```
+
+> [!TIP]
+> Use `--repeat` when running benchmarks, and prefer the default `median`
+> statistic when plotting. Timings are right-skewed — a run can be slowed by
+> unrelated load but never made faster than the machine allows — so a single
+> sample or a mean is easily distorted by one interrupted run. On short
+> benchmarks the fastest engines have been measured varying by more than 4x
+> across ten repeats, while slower ones varied by around 2%.
+> `--statistic` accepts `median` (default), `mean` or `min`; the error bars
+> always show the full observed range.
 
 #### 📄 Exported CSV Structure
 

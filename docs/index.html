@@ -82,7 +82,7 @@
       <tr><td>raw</td><td>Table</td><td>Original CSV data</td></tr>
       <tr><td>runs</td><td>Table</td><td>Individual successful runs (use for filtering)</td></tr>
       <tr><td>failed</td><td>Table</td><td>Failed runs (return_code !== 0)</td></tr>
-      <tr><td>benchmarks</td><td>Table</td><td>Per-engine, per-benchmark scores</td></tr>
+      <tr><td>benchmarks</td><td>Table</td><td>Per-engine, per-benchmark scores (repeats collapsed to their median)</td></tr>
       <tr><td>scores</td><td>Table</td><td>Engine × benchmark scores (ordered by total_score)</td></tr>
       <tr><td>runtimes</td><td>Table</td><td>Engine × benchmark times in seconds (ordered by total)</td></tr>
       <tr><td>computeScores(runs)</td><td>Function</td><td>Compute scores table from filtered runs</td></tr>
@@ -90,9 +90,13 @@
       <tr><td>aq</td><td>Global</td><td>Arquero library</td></tr>
       <tr><td>op</td><td>Global</td><td>Arquero operators</td></tr>
     </table>
-    <p style="margin:12px 0 0;line-height:1.5"><strong>Scoring:</strong> For each benchmark, the geometric mean time across all engines is computed. 
-      An engine's score for a benchmark is <code>gmean / time</code> (faster = higher). 
-      Total score is the sum across benchmarks.</p>
+    <p style="margin:12px 0 0;line-height:1.5"><strong>Scoring:</strong> Repeated runs of the same
+      engine and benchmark are first collapsed to their <strong>median</strong> time — timings are
+      right-skewed, since a run can be slowed by unrelated load but never made faster than the
+      machine allows. For each benchmark, the geometric mean of those times across all engines is
+      computed. An engine's score for a benchmark is <code>gmean / time</code> (faster = higher).
+      Total score is the sum across benchmarks. The <code>runs</code> column records how many
+      repeats each row summarizes.</p>
     <details style="margin-top:12px">
       <summary>Filter + Recompute Examples</summary>
       <pre style="background:var(--bg-row-even);padding:12px;border-radius:6px;overflow-x:auto;font-size:13px">// Exclude engines

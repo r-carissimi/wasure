@@ -88,6 +88,53 @@ check(
   synthetic.failed.array("benchmark").includes("invalid"),
 );
 
+// Repeated runs must collapse to one row per engine and benchmark, summarized
+// by the median. Without this an engine repeated more times than the others
+// would skew the per-benchmark geometric mean the scores are relative to, and
+// a single slow outlier would drag its own average.
+const repeatCsv = [
+  "benchmark,runtime,run_index,elapsed_time_ns,score,return_code",
+  // Odd number of runs so the median is one of the samples: median 120,
+  // mean 692 -- far apart, so which one is used is unambiguous.
+  "b,engineA,1,100,0,0",
+  "b,engineA,2,110,0,0",
+  "b,engineA,3,120,0,0",
+  "b,engineA,4,130,0,0",
+  "b,engineA,5,3000,0,0",
+  // A single run, to check unequal repeat counts are handled.
+  "b,engineB,1,200,0,0",
+].join("\n");
+const repeated = buildTables(repeatCsv);
+
+check(
+  "repeats collapse to one row per engine and benchmark",
+  repeated.benchmarks.numRows() === 2,
+  `got ${repeated.benchmarks.numRows()} rows, expected 2`,
+);
+const collapsed = Object.fromEntries(
+  repeated.benchmarks.objects().map((r) => [r.engine, r]),
+);
+check(
+  "collapsed time is the median, not the mean",
+  collapsed.engineA?.elapsed_time_ns === 120,
+  `got ${collapsed.engineA?.elapsed_time_ns}, median is 120 and mean is 692`,
+);
+check(
+  "the number of runs behind each row is reported",
+  collapsed.engineA?.runs === 5 && collapsed.engineB?.runs === 1,
+  `got ${collapsed.engineA?.runs} and ${collapsed.engineB?.runs}`,
+);
+check(
+  "the faster engine scores higher",
+  collapsed.engineA?.score > collapsed.engineB?.score,
+  `${collapsed.engineA?.score} vs ${collapsed.engineB?.score}`,
+);
+check(
+  "one leaderboard row per engine despite the repeats",
+  repeated.scores.numRows() === 2,
+  `got ${repeated.scores.numRows()}`,
+);
+
 // computeScores must be recomputable from a filtered subset, which is the
 // documented way to exclude an engine from the leaderboard.
 const engines = [...new Set(tables.runs?.array("engine") ?? [])];
