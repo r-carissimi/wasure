@@ -16,6 +16,15 @@ import psutil
 
 from . import benchmarks, runtimes, utils
 
+# Sentinel return codes for failures that wasure detects itself, rather than
+# ones the payload reported. Popen represents death by signal as the negated
+# signal number (-2 for SIGINT, -11 for SIGSEGV, ...), so these sit well
+# outside that range to stay distinguishable from a killed payload. Both are
+# non-zero, so consumers filtering on `return_code != 0` still treat them as
+# failures.
+RETURN_CODE_TIMEOUT = -1001
+RETURN_CODE_VALIDATION_FAILED = -1002
+
 
 def parse(parser):
     """Parse command-line arguments for the runtime module.
@@ -220,6 +229,18 @@ def _parse_score(output, score_parser):
     return 0
 
 
+def _merge_output(stdout, stderr):
+    """Merge the stdout and stderr of a benchmark into a single string.
+
+    The two streams are kept on separate lines. Concatenating them directly
+    would let the last token of stdout fuse with the first token of stderr,
+    which silently breaks `score-parser` and `output-validator` regexes.
+    """
+
+    parts = [stream.decode(errors="replace").strip() for stream in (stdout, stderr)]
+    return "\n".join(part for part in parts if part)
+
+
 def _run_benchmark_with_runtime(
     benchmark,
     runtime,
@@ -292,19 +313,38 @@ def _run_benchmark_with_runtime(
 
     max_memory_rss = 0
     max_memory_vms = 0
+    memory_sampled = False
 
     try:
         # if pool_memory is True, we will monitor the memory usage of the process
         if pool_memory:
             proc = psutil.Process(process.pid)
             start = time.time()
+            can_sample = True
             while process.poll() is None:
                 if timeout_seconds and time.time() - start > timeout_seconds:
                     process.kill()
                     raise subprocess.TimeoutExpired(command, timeout_seconds)
-                mem_info = proc.memory_info()
-                max_memory_rss = max(max_memory_rss, mem_info.rss)
-                max_memory_vms = max(max_memory_vms, mem_info.vms)
+                if can_sample:
+                    try:
+                        mem_info = proc.memory_info()
+                    except (
+                        psutil.NoSuchProcess,
+                        psutil.AccessDenied,
+                        ProcessLookupError,
+                    ):
+                        # The process may just have exited in the window
+                        # between poll() and memory_info(), which short
+                        # benchmarks hit routinely. It may also have become
+                        # permanently unreadable. Either way, give up on
+                        # sampling but keep looping so that the timeout is
+                        # still enforced; the loop exits on its own once the
+                        # process is gone.
+                        can_sample = False
+                    else:
+                        max_memory_rss = max(max_memory_rss, mem_info.rss)
+                        max_memory_vms = max(max_memory_vms, mem_info.vms)
+                        memory_sampled = True
                 time.sleep(0.01)
             stdout, stderr = process.communicate()
         else:
@@ -321,8 +361,8 @@ def _run_benchmark_with_runtime(
         return (
             elapsed_time,
             0,
-            -1,
-            stdout.decode().strip() + stderr.decode().strip(),
+            RETURN_CODE_TIMEOUT,
+            _merge_output(stdout, stderr),
             {},
         )
 
@@ -331,24 +371,35 @@ def _run_benchmark_with_runtime(
 
     logging.debug(f"Elapsed time: {elapsed_time} ns")
 
-    if pool_memory:
+    if pool_memory and memory_sampled:
         logging.debug(f"Max RSS memory: {max_memory_rss / 1024} KB")
         logging.debug(f"Max VMS memory: {max_memory_vms / 1024} KB")
+    elif pool_memory:
+        logging.debug("Memory usage could not be sampled for this run")
 
-    output = stdout.decode().strip() + stderr.decode().strip()
+    output = _merge_output(stdout, stderr)
     logging.debug(f"Output: {output}")
 
     # Validate the output with a regex, if specified
-    if benchmark.get("output-validator") and not re.search(
-        benchmark.get("output-validator"), output
-    ):
-        logging.warning(
-            f"Output validation failed for benchmark {benchmark['name']} with runtime {runtime['name']}"
+    if benchmark.get("output-validator"):
+        if not re.search(benchmark.get("output-validator"), output):
+            logging.warning(
+                f"Output validation failed for benchmark {benchmark['name']} with runtime {runtime['name']}"
+            )
+            # The payload may well have exited 0 while producing wrong output.
+            # Reporting that exit code here would make the run look successful
+            # even though it produced no usable timing, so report a dedicated
+            # failure code instead.
+            return (
+                0,
+                0,
+                process.returncode or RETURN_CODE_VALIDATION_FAILED,
+                output,
+                {},
+            )
+        logging.debug(
+            f"Output validation succeeded for benchmark {benchmark['name']} with runtime {runtime['name']}"
         )
-        return 0, 0, process.returncode, output, {}
-    logging.debug(
-        f"Output validation succeeded for benchmark {benchmark['name']} with runtime {runtime['name']}"
-    )
 
     score = (
         _parse_score(output, benchmark.get("score-parser"))
@@ -362,7 +413,10 @@ def _run_benchmark_with_runtime(
         if (match := re.search(stat_regex, output))
     }
 
-    if pool_memory:
+    # Only report memory when it was actually measured. Emitting zeros for a
+    # run that was never sampled would be indistinguishable from a real
+    # measurement once it reaches the CSV.
+    if pool_memory and memory_sampled:
         stats["max_rss_bytes"] = max_memory_rss
         stats["max_vms_bytes"] = max_memory_vms
 
@@ -422,15 +476,51 @@ def _compile_benchmark(benchmark, runtime, benchmarks_folder, runtimes_folder):
     return None
 
 
-def _save_results_to_file(results, folder=utils.DEFAULT_RESULTS_FOLDER):
-    if not os.path.exists(folder):
-        os.makedirs(folder)
+def _new_results_filename(folder=utils.DEFAULT_RESULTS_FOLDER):
+    """Build the path of the results file for this run.
 
-    filename = os.path.join(folder, time.strftime("%Y-%m-%d_%H-%M-%S.json"))
-    with open(filename, "w") as f:
-        json.dump(results, f, indent=4)
+    The name is claimed before the sweep starts, because results are written
+    to it as they are collected. Two runs started within the same second
+    would otherwise share a name and overwrite each other's results, so a
+    counter is appended if the name is already taken.
+    """
 
-    logging.info(f"Results saved to {filename}")
+    stem = time.strftime("%Y-%m-%d_%H-%M-%S")
+    filename = os.path.join(folder, f"{stem}.json")
+
+    suffix = 2
+    while os.path.exists(filename):
+        filename = os.path.join(folder, f"{stem}_{suffix}.json")
+        suffix += 1
+
+    return filename
+
+
+def _save_results_to_file(results, filename):
+    """Write results to filename, replacing any previous content.
+
+    This is called after every benchmark rather than only at the end of the
+    run, so that a crash or an interrupt part-way through a long sweep does
+    not discard the results already collected. The write goes to a temporary
+    file first and is then moved into place, so an interrupt during the write
+    itself cannot leave a truncated JSON file behind.
+    """
+
+    os.makedirs(os.path.dirname(filename) or ".", exist_ok=True)
+
+    tmp_filename = f"{filename}.tmp"
+    try:
+        with open(tmp_filename, "w") as f:
+            json.dump(results, f, indent=4)
+        os.replace(tmp_filename, filename)
+    except BaseException:
+        # Do not leave a partial temporary file behind if the write fails or
+        # the run is interrupted. The previous checkpoint stays intact.
+        if os.path.exists(tmp_filename):
+            os.remove(tmp_filename)
+        raise
+
+    logging.debug(f"Results saved to {filename}")
 
 
 def get_runtimes(runtimes_file, chosen_runtimes):
@@ -467,8 +557,14 @@ def _run_benchmarks(
     no_store_output=False,
     pool_memory=False,
     timeout_seconds=None,
+    results_file=None,
 ):
-    """Runs benchmarks for each runtime and collects results."""
+    """Runs benchmarks for each runtime and collects results.
+
+    If results_file is given, the results collected so far are written to it
+    after every benchmark, so that an interrupted sweep keeps its partial
+    results instead of losing everything.
+    """
 
     results = {}
 
@@ -490,6 +586,9 @@ def _run_benchmarks(
                 pool_memory,
                 timeout_seconds,
             )
+
+            if results_file:
+                _save_results_to_file(results, results_file)
 
     return results
 
@@ -591,6 +690,10 @@ def main(args):
         logging.error("No benchmarks found. Exiting.")
         return
 
+    # Results are checkpointed to this file after every benchmark, so the
+    # name is fixed up front rather than when the sweep finishes.
+    results_file = _new_results_filename(results_folder)
+
     # Run benchmarks
     results = _run_benchmarks(
         runtimes_list,
@@ -601,7 +704,9 @@ def main(args):
         args.no_store_output,
         args.memory,
         args.timeout,
+        results_file,
     )
 
     # Save results
-    _save_results_to_file(results, folder=results_folder)
+    _save_results_to_file(results, results_file)
+    logging.info(f"Results saved to {results_file}")
