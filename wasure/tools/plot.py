@@ -127,6 +127,21 @@ def _transpose_benchmark_data(results, benchmarks_list, benchmark_metrics):
     return raw_values
 
 
+def _empty_runtime_data(benchmarks_list, raw_values):
+    """Build the empty per-runtime accumulator used when plotting.
+
+    Every runtime that appears in any benchmark gets an entry. Seeding this
+    from a single benchmark instead would raise a KeyError as soon as one
+    runtime failed, timed out or was skipped on that particular benchmark.
+    """
+
+    return {
+        runtime: {"values": {}, "errors": {}}
+        for benchmark in benchmarks_list
+        for runtime in raw_values[benchmark]
+    }
+
+
 def _normalize_values(benchmarks_list, benchmark_metrics, raw_values):
     """Normalize raw values for each benchmark.
 
@@ -134,10 +149,7 @@ def _normalize_values(benchmarks_list, benchmark_metrics, raw_values):
     For elapsed times, normalize by the minimum value.
     """
 
-    runtime_data = {
-        runtime: {"values": {}, "errors": {}}
-        for runtime in raw_values[benchmarks_list[0]]
-    }
+    runtime_data = _empty_runtime_data(benchmarks_list, raw_values)
     for benchmark in benchmarks_list:
         values = {
             runtime: data["avg"] for runtime, data in raw_values[benchmark].items()
@@ -192,10 +204,7 @@ def _all_benchmarks_single_runtime(statistics, benchmarks_list):
 def _absolute_values(benchmarks_list, raw_values):
     """Prepare absolute values for plotting (no normalization)."""
 
-    runtime_data = {
-        runtime: {"values": {}, "errors": {}}
-        for runtime in raw_values[benchmarks_list[0]]
-    }
+    runtime_data = _empty_runtime_data(benchmarks_list, raw_values)
     for benchmark in benchmarks_list:
         for runtime, data in raw_values[benchmark].items():
             runtime_data[runtime]["values"][benchmark] = data["avg"]
