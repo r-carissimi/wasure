@@ -6,6 +6,7 @@ that silently corrupted recorded results.
 """
 
 import os
+import time
 
 import psutil
 import pytest
@@ -36,17 +37,72 @@ class TestReturnCodes:
         )
         assert return_code == 3
 
-    def test_timeout_reports_its_own_sentinel(self, benchmark, benchmarks_folder):
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # A single simple command: the shell may exec it, so the process
+            # wasure holds is the payload itself.
+            "sleep 5",
+            # A compound command forces the shell to fork, so the payload is a
+            # grandchild. Killing only the shell leaves it running, holding the
+            # output pipes open, and the timeout stops bounding anything.
+            "sleep 5 && true",
+        ],
+        ids=["exec", "fork"],
+    )
+    @pytest.mark.parametrize("pool_memory", [False, True], ids=["plain", "memory"])
+    def test_timeout_actually_cuts_the_run_short(
+        self, benchmark, benchmarks_folder, command, pool_memory
+    ):
+        started = time.monotonic()
         elapsed, score, return_code, _, _ = execute(
             benchmark,
-            make_runtime(command="sleep 5"),
+            make_runtime(command=command),
+            benchmarks_folder,
+            pool_memory=pool_memory,
+            timeout_seconds=1,
+        )
+        wall = time.monotonic() - started
+
+        assert return_code == run.RETURN_CODE_TIMEOUT
+        assert score == 0
+        # Both the wall clock and the recorded time must reflect the timeout
+        # rather than the payload's own five seconds. The bound is loose
+        # because CI runners are slow, but far below five seconds.
+        assert wall < 3, f"waited {wall:.2f}s for a 1s timeout"
+        assert elapsed < 3e9, f"recorded {elapsed / 1e9:.2f}s for a 1s timeout"
+
+    def test_timeout_leaves_no_orphaned_payload(self, benchmark, benchmarks_folder):
+        """The payload must not survive its own timeout.
+
+        An abandoned engine keeps consuming CPU and perturbs every benchmark
+        measured afterwards. An oddly specific duration is used so that the
+        surviving process can be identified exactly, without matching this
+        test's own command line.
+        """
+
+        duration = "31.41593"
+        execute(
+            benchmark,
+            # The shell must fork here, so the sleep is a grandchild and is
+            # only reachable by signalling the whole process group.
+            make_runtime(command=f"sleep {duration} && true"),
             benchmarks_folder,
             timeout_seconds=1,
         )
-        assert return_code == run.RETURN_CODE_TIMEOUT
-        assert score == 0
-        # The run really was cut short rather than allowed to finish.
-        assert elapsed < 4e9
+
+        survivors = []
+        for candidate in psutil.process_iter(["cmdline", "status"]):
+            try:
+                cmdline = candidate.info["cmdline"] or []
+                if cmdline[:2] == ["sleep", duration] and candidate.info[
+                    "status"
+                ] != psutil.STATUS_ZOMBIE:
+                    survivors.append(candidate.pid)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, IndexError):
+                continue
+
+        assert not survivors, f"payload survived its timeout: pids {survivors}"
 
     def test_sentinels_cannot_be_confused_with_signal_deaths(self):
         """Popen reports a signal death as the negated signal number.
@@ -236,7 +292,7 @@ class TestMemorySampling:
             timeout_seconds=1,
         )
         assert return_code == run.RETURN_CODE_TIMEOUT
-        assert elapsed < 4e9
+        assert elapsed < 3e9, f"recorded {elapsed / 1e9:.2f}s for a 1s timeout"
         assert not stats
 
     def test_unsampled_memory_is_absent_rather_than_zero(

@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+import signal
 import subprocess
 import time
 
@@ -229,6 +230,35 @@ def _parse_score(output, score_parser):
     return 0
 
 
+def _kill_process_tree(process):
+    """Kill the benchmark process and everything it spawned.
+
+    Benchmarks run through a shell, so process.pid is the shell's rather than
+    the engine's. When the shell forks instead of exec'ing -- which depends on
+    the command's shape and on which shell /bin/sh is -- killing it alone
+    leaves the engine running. The orphan keeps the inherited stdout and
+    stderr pipes open, so the communicate() that follows blocks until the
+    payload finishes by itself: --timeout then bounds nothing, the recorded
+    time is the payload's full runtime, and the abandoned engine keeps
+    consuming CPU and skewing later measurements.
+
+    The child is started in its own session (see start_new_session below), so
+    signalling its process group reaches the shell and all its descendants.
+    """
+
+    try:
+        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        # Already exited, or somehow not a group leader. Fall through to
+        # killing the process directly.
+        pass
+
+    try:
+        process.kill()
+    except ProcessLookupError:
+        pass
+
+
 def _merge_output(stdout, stderr):
     """Merge the stdout and stderr of a benchmark into a single string.
 
@@ -309,6 +339,9 @@ def _run_benchmark_with_runtime(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=runtimes_folder,
+        # Make the shell a process-group leader so that _kill_process_tree can
+        # reach the engine it spawns, not just the shell itself.
+        start_new_session=True,
     )
 
     max_memory_rss = 0
@@ -323,7 +356,7 @@ def _run_benchmark_with_runtime(
             can_sample = True
             while process.poll() is None:
                 if timeout_seconds and time.time() - start > timeout_seconds:
-                    process.kill()
+                    _kill_process_tree(process)
                     raise subprocess.TimeoutExpired(command, timeout_seconds)
                 if can_sample:
                     try:
@@ -354,7 +387,7 @@ def _run_benchmark_with_runtime(
             stdout, stderr = process.communicate(timeout=timeout_seconds)
 
     except subprocess.TimeoutExpired:
-        process.kill()
+        _kill_process_tree(process)
         logging.warning(f"Benchmark timed out after {timeout_seconds} seconds")
         stdout, stderr = process.communicate()
         elapsed_time = time.perf_counter_ns() - start_time
