@@ -180,6 +180,28 @@ When you export benchmark results to CSV, each row contains the following column
 | `max_rss_bytes`   | Maximum resident set size in bytes, if `--memory` is set   |
 | `max_vms_bytes`   | Maximum virtual memory size in bytes, if `--memory` is set |
 
+##### Return codes
+
+A `return_code` of `0` means the run succeeded. A positive value is the exit
+status reported by the payload, and a small negative value is the signal that
+killed it (for example `-11` for `SIGSEGV`). Two values are reported by WASURE
+itself rather than by the payload:
+
+| Value   | Meaning                                                              |
+|---------|----------------------------------------------------------------------|
+| `-1001` | The run exceeded `--timeout` and was killed                          |
+| `-1002` | The run finished but its output did not match its `output-validator`  |
+
+In both of these cases `elapsed_time_ns` and `score` are reported as `0`, since
+no usable measurement was obtained. Treat any non-zero `return_code` as a failed
+run.
+
+> [!NOTE]
+> Prefer `max_rss_bytes` when comparing memory use. `max_vms_bytes` counts every
+> mapped region rather than memory actually used, so it is not comparable across
+> platforms — on macOS it routinely reads as hundreds of gigabytes.
+> Both columns are left empty for runs too short to be sampled.
+
 
 
 ### ✅ Checking Runtimes Support
