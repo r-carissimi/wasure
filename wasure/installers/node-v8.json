@@ -1,6 +1,6 @@
 {
-    "name": "Node (V8)",
-    "desc": "Node.js runtime with V8 engine and WASI support.",
+    "name": "node-v8",
+    "desc": "Node.js runtime with V8 engine and WASI support. Invoked as 'node-v8'.",
     "install-dir": "node-v8",
     "install-command": "mkdir -p node-v8 && cd node-v8 && export HOME=\"$PWD\" && export XDG_CONFIG_HOME=\"$PWD\" && export NVM_DIR=\"$PWD/nvm\" && curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash && . \"$NVM_DIR/nvm.sh\" && nvm install --lts && mkdir -p bin && ln -sf \"$(nvm which current)\" bin/node && cp ../../installers/v8/run.mjs run.mjs",
     "update-command": "cd node-v8 && export HOME=\"$PWD\" && export XDG_CONFIG_HOME=\"$PWD\" && export NVM_DIR=\"$PWD/nvm\" && . \"$NVM_DIR/nvm.sh\" && nvm install --lts && ln -sf \"$(nvm which current)\" bin/node",
