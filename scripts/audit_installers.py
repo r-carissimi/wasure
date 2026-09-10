@@ -144,8 +144,12 @@ def main():
     parser.add_argument(
         "--benchmarks",
         nargs="*",
-        default=["dummy"],
-        help="Benchmarks to run on each survivor (default: dummy)",
+        # "dummy/dummy", not "dummy": the latter is the whole group, which also
+        # contains "param". param exercises calling a named entrypoint with
+        # arguments, which plenty of runtimes legitimately do not support, so
+        # including it would report healthy engines as broken.
+        default=["dummy/dummy"],
+        help="Benchmarks to run on each survivor (default: dummy/dummy)",
     )
     parser.add_argument(
         "--workdir", help="Where to install (default: a temporary directory)"

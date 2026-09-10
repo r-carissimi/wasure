@@ -50,8 +50,11 @@ jobs:
             runtimes="wasmtime wasmedge wasmer wazero wasm3"
           fi
           echo "Auditing: $runtimes"
+          # dummy/dummy rather than the dummy group: the group also holds
+          # "param", which needs entrypoint-with-arguments support that many
+          # runtimes do not have.
           python scripts/audit_installers.py $runtimes \
-            --benchmarks dummy helloworld \
+            --benchmarks dummy/dummy helloworld \
             | tee audit.log
 
       - name: Summarize
