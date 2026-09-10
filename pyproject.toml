@@ -28,6 +28,9 @@ classifiers = [
 dependencies = ["matplotlib", "psutil"]
 dynamic = ["version"]
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
 [project.urls]
 Homepage = "https://github.com/r-carissimi/wasure"
 "Bug Tracker" = "https://github.com/r-carissimi/wasure/issues"
@@ -43,3 +46,7 @@ version = { attr = "wasure.wasure.VERSION_NUMBER" }
 [tool.setuptools]
 packages = ["wasure", "wasure.tools"]
 include-package-data = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
