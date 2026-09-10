@@ -1,20 +1,45 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "wasure"
-version = "0.1.0"
-description = "WebAssembly SUite for Runtime Evaluation"
+description = "A WebAssembly benchmarking suite for precise performance measurement"
 readme = "README.md"
 requires-python = ">=3.8"
-dependencies = [
-    "matplotlib",
-    "psutil",
-    "polars",
-    "pip>=25.0.1",
-    "requests>=2.32.4",
+authors = [{ name = "Riccardo Carissimi" }]
+keywords = [
+    "wasure",
+    "webassembly",
+    "wasm",
+    "benchmarking",
+    "performance",
+    "measurement",
 ]
+classifiers = [
+    "Environment :: Console",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Benchmark",
+]
+dependencies = ["matplotlib", "psutil"]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/r-carissimi/wasure"
+"Bug Tracker" = "https://github.com/r-carissimi/wasure/issues"
 
 [project.scripts]
 wasure = "wasure.wasure:main"
+
+# The version lives in the code so that `wasure --version` and the package
+# metadata can never disagree.
+[tool.setuptools.dynamic]
+version = { attr = "wasure.wasure.VERSION_NUMBER" }
+
+[tool.setuptools]
+packages = ["wasure", "wasure.tools"]
+include-package-data = true
