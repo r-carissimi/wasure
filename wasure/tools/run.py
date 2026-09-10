@@ -680,7 +680,7 @@ def main(args):
 
     if not runtimes_list:
         logging.error("No runtimes found. Exiting.")
-        return
+        return 1
 
     # Load the benchmarks from the command line arguments
     benchmarks_list = load_benchmarks(args.benchmarks, benchmarks_folder)
@@ -688,7 +688,7 @@ def main(args):
 
     if not benchmarks_list:
         logging.error("No benchmarks found. Exiting.")
-        return
+        return 1
 
     # Results are checkpointed to this file after every benchmark, so the
     # name is fixed up front rather than when the sweep finishes.

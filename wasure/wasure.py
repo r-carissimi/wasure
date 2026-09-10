@@ -1,4 +1,5 @@
 import logging
+import sys
 from argparse import ArgumentParser
 
 from wasure.tools import commands, utils
@@ -40,11 +41,14 @@ def main():
     args = parser.parse_args()
     setup_logging(level=getattr(logging, args.log_level.upper()))
 
-    if hasattr(args, "_func"):
-        args._func(args)
-    else:
+    if not hasattr(args, "_func"):
         parser.print_help()
+        return 1
+
+    # Subcommands return an exit status, or None when they succeeded, so that
+    # failures are visible to scripts and CI rather than only in the log.
+    return args._func(args) or 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -75,7 +75,7 @@ def main(args):
 
     if not runtimes_list:
         logging.error("No runtimes found. Exiting.")
-        return
+        return 1
 
     # Load the benchmarks from the command line arguments
     benchmarks_list = run.load_benchmarks([args.benchmark], benchmarks_folder)
@@ -83,7 +83,7 @@ def main(args):
 
     if not benchmarks_list:
         logging.error("No benchmarks found. Exiting.")
-        return
+        return 1
 
     # Run benchmarks on runtimes and collect return codes
     return_codes = {}

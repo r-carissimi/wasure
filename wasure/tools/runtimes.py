@@ -95,6 +95,13 @@ def parse(parser):
         help="Skip runtime check after installation",
     )
 
+    install_parser.add_argument(
+        "--allow-partial",
+        action="store_true",
+        default=False,
+        help="Succeed even if some of the runtime's configurations do not work",
+    )
+
     # "remove" command to remove a runtime
     remove_parser = subparsers.add_parser(
         "remove",
@@ -539,13 +546,13 @@ def main(args):
         runtime = _get_available_runtime_by_name(args.name, available_runtimes)
         if not runtime:
             print(f"Runtime {args.name} not found.")
-            return
+            return 1
 
         # Check if the runtime is already installed
         installed_runtimes = list_runtimes(args.runtimes_file)
         if any(rt["name"] == runtime["name"] for rt in installed_runtimes):
             print(f"Runtime {args.name} is already installed.")
-            return
+            return 0
 
         # Remove folder if it exists
         install_dir = os.path.join(args.runtimes_folder, runtime["install-dir"])
@@ -554,14 +561,48 @@ def main(args):
             shutil.rmtree(install_dir)
             logging.info(f"Removed {install_dir} folder.")
 
+        # Remember what the installer promised, so that configurations
+        # dropped by the check below can be reported rather than only warned
+        # about. An engine whose backends are silently discarded still looks
+        # like a successful install otherwise.
+        expected_subruntimes = [s["name"] for s in runtime.get("subruntimes", [])]
+
         # Install the runtime
-        if _execute_runtime_command(runtime, "install-command", args.runtimes_folder):
-            if not args.no_runtime_check:
-                runtime = _check_runtime_installation(
-                    runtime, args.runtimes_folder, args.benchmarks_folder
-                )
-            if runtime:
-                _add_runtime_to_runtimes_file(runtime, args.runtimes_file)
+        if not _execute_runtime_command(
+            runtime, "install-command", args.runtimes_folder
+        ):
+            print(f"Runtime {args.name} failed to install.")
+            return 1
+
+        if not args.no_runtime_check:
+            runtime = _check_runtime_installation(
+                runtime, args.runtimes_folder, args.benchmarks_folder
+            )
+
+        if not runtime:
+            print(f"Runtime {args.name} installed but does not work.")
+            return 1
+
+        _add_runtime_to_runtimes_file(runtime, args.runtimes_file)
+
+        dropped = [
+            name
+            for name in expected_subruntimes
+            if name not in {s["name"] for s in runtime.get("subruntimes", [])}
+        ]
+        if dropped:
+            print(
+                f"Runtime {args.name} installed, but "
+                f"{len(dropped)} of {len(expected_subruntimes)} configurations "
+                f"did not work and were removed: {', '.join(dropped)}"
+            )
+            print(
+                "Re-run with --log-level DEBUG to see why, or pass "
+                "--allow-partial to treat this as success."
+            )
+            return 0 if args.allow_partial else 1
+
+        print(f"Runtime {args.name} installed successfully.")
 
     elif args.operation == "remove":
         args.runtimes_folder = utils.get_absolute_path(args.runtimes_folder)
@@ -571,7 +612,7 @@ def main(args):
         installed_runtimes = list_runtimes(args.runtimes_file)
         if not any(rt["name"] == args.name for rt in installed_runtimes):
             print(f"Runtime {args.name} is not installed.")
-            return
+            return 1
 
         # Get the runtime information
         runtime = get_runtime_from_name(args.name, args.runtimes_file)
@@ -593,7 +634,7 @@ def main(args):
         runtimes_list = list_runtimes(args.runtimes_file)
         if not runtimes_list:
             print("No runtimes found.")
-            return
+            return 1
 
         print("Versions installed:")
         for runtime in runtimes_list:
@@ -614,7 +655,7 @@ def main(args):
         installed_runtimes = list_runtimes(args.runtimes_file)
         if not any(rt["name"] == args.name for rt in installed_runtimes):
             print(f"Runtime {args.name} is not installed.")
-            return
+            return 1
 
         # Get the runtime information
         runtime = get_runtime_from_name(args.name, args.runtimes_file)
@@ -622,10 +663,15 @@ def main(args):
         if not runtime.get("update-command"):
             logging.debug(f"Runtime {args.name} does not have an update command.")
             print(f"Runtime {args.name} does not support update.")
-            return
+            return 1
 
         # Update the runtime
-        _execute_runtime_command(runtime, "update-command", args.runtimes_folder)
+        if not _execute_runtime_command(
+            runtime, "update-command", args.runtimes_folder
+        ):
+            print(f"Runtime {args.name} failed to update.")
+            return 1
 
     else:
         print("Unknown operation. Use 'list' to see available runtimes.")
+        return 1

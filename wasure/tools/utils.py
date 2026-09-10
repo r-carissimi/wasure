@@ -43,6 +43,9 @@ def load_results_file(file_path):
     except json.JSONDecodeError:
         logging.error("Failed to decode JSON from the results file.")
         return None
+    except OSError as error:
+        logging.error(f"Could not read the results file: {error}")
+        return None
 
 
 def get_absolute_path(path):

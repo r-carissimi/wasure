@@ -110,7 +110,7 @@ def main(args):
 
     results = utils.load_results_file(args.results_file)
     if not results:
-        return
+        return 1
 
     # CSV filename is the same as the results file, but with a .csv extension
     filename = os.path.join(

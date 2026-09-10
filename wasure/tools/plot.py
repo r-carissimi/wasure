@@ -271,14 +271,14 @@ def main(args):
 
     results = utils.load_results_file(args.results_file)
     if not results:
-        logging.info("No results found in the file.")
-        return
+        logging.error("No results found in the file.")
+        return 1
 
     statistics = _compute_statistics(results)
     # Avoids empty plots
     if not statistics:
-        logging.info("No valid results found in the file.")
-        return
+        logging.error("No valid results found in the file.")
+        return 1
 
     benchmarks_list = _collect_benchmarks(statistics)
     benchmark_metrics = _determine_benchmark_metrics(statistics, benchmarks_list)
