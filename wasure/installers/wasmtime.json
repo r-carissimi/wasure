@@ -5,19 +5,19 @@
 	"install-dir": "wasmtime",
 	"update-command": "curl https://wasmtime.dev/install.sh -sSf | PROFILE=$(mktemp) WASMTIME_HOME='wasmtime' bash",
 	"version-command": "wasmtime/bin/wasmtime -V",
-	"command": "wasmtime/bin/wasmtime -W gc -W function-references -S threads --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
+	"command": "wasmtime/bin/wasmtime -W gc -W function-references -W threads -W shared-memory --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
 	"entrypoint-flag": "--invoke",
 	"subruntimes": [
 		{
 			"name": "wasmtime-aot",
-			"command": "wasmtime/bin/wasmtime --allow-precompiled -W gc -W function-references -S threads --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
+			"command": "wasmtime/bin/wasmtime --allow-precompiled -W gc -W function-references -W threads -W shared-memory --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
 			"entrypoint-flag": "--invoke",
 			"desc": "Wasmtime with AOT",
-			"aot-command": "wasmtime/bin/wasmtime compile -W gc -W function-references -S threads -o {output} {input}"
+			"aot-command": "wasmtime/bin/wasmtime compile -W gc -W function-references -W threads -W shared-memory -o {output} {input}"
 		},
 		{
 			"name": "wasmtime-pulley64",
-			"command": "wasmtime/bin/wasmtime --target pulley64 -W gc -W function-references -S threads --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
+			"command": "wasmtime/bin/wasmtime --target pulley64 -W gc -W function-references --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
 			"entrypoint-flag": "--invoke",
 			"desc": "Wasmtime with Pulley bytecode interpreter for 64-bit architectures"
 		}
