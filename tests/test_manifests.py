@@ -122,6 +122,55 @@ class TestInstallerManifests:
             assert "subruntimes" not in sub, "subruntimes cannot be nested"
 
 
+class TestInstallerIsolation:
+    """Installers must not modify the user's machine outside the runtimes folder.
+
+    Vendor install scripts routinely append a `source .../env` line to the
+    user's shell startup files. Since WASURE installs engines into a
+    throwaway-able runtimes directory, such a line outlives the install and
+    breaks every new shell once the directory is removed. This happened with
+    wasmedge, which left two dangling lines in a real ~/.zshenv.
+    """
+
+    # Ways an installer can stop a vendor script writing to shell startup
+    # files: redirect the file it edits, redirect HOME so it edits a throwaway
+    # copy, or pass the script's own opt-out flag.
+    NEUTRALIZERS = (
+        "PROFILE=",
+        "HOME=",
+        "XDG_CONFIG_HOME=",
+        "--no-modify-shell-profile",
+        "--no-modify-path",
+    )
+
+    def _pipes_a_remote_script(self, command):
+        fetches = "curl" in command or "wget" in command
+        pipes_to_shell = "| bash" in command or "| sh" in command or "|bash" in command
+        return fetches and pipes_to_shell
+
+    def test_piped_installers_cannot_edit_shell_startup_files(self, installer_path):
+        data = load(installer_path)
+        for key in ("install-command", "update-command"):
+            command = data.get(key, "")
+            if not self._pipes_a_remote_script(command):
+                continue
+            assert any(n in command for n in self.NEUTRALIZERS), (
+                f"{data['name']}: {key} pipes a remote script into a shell "
+                "without preventing it from editing shell startup files. Set "
+                "PROFILE or HOME to somewhere disposable, or pass the "
+                "script's opt-out flag."
+            )
+
+    def test_installs_stay_inside_the_runtimes_folder(self, installer_path):
+        """install-dir is relative, so an absolute or escaping path would
+        write outside the directory the user asked us to use."""
+
+        install_dir = load(installer_path).get("install-dir", "")
+        assert install_dir, "install-dir is required"
+        assert not os.path.isabs(install_dir), install_dir
+        assert ".." not in install_dir.split(os.sep), install_dir
+
+
 class TestInstallerNaming:
     def test_names_are_unique_across_all_installers(self, repo_root):
         names = []

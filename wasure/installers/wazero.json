@@ -1,9 +1,9 @@
 {
 	"name": "wazero",
-	"install-command": "mkdir wazero && cd wazero && curl https://wazero.io/install.sh -sSf| sh",
+	"install-command": "mkdir wazero && cd wazero && curl https://wazero.io/install.sh -sSf| HOME=\"$PWD\" sh",
 	"desc": "Wazero is a standalone JIT-style runtime for WebAssembly",
 	"install-dir": "wazero",
-	"update-command": "rm -rf wazero && mkdir wazero && cd wazero && curl https://wazero.io/install.sh -sSf| sh",
+	"update-command": "rm -rf wazero && mkdir wazero && cd wazero && curl https://wazero.io/install.sh -sSf| HOME=\"$PWD\" sh",
 	"version-command": "wazero/bin/wazero version",
 	"command": "wazero/bin/wazero run -mount {mount_dir} {payload} {args}",
 	"subruntimes": [

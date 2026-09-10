@@ -4,9 +4,9 @@
 	"version-command": "wasmedge/bin/wasmedge --version",
 	"command": "wasmedge/bin/wasmedge {entrypoint_flag} --enable-all --enable-all-statistics --dir {mount_dir} {payload} {entrypoint} {args}",
 	"entrypoint-flag": "--reactor",
-	"install-command": "curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash -s -- -p wasmedge",
+	"install-command": "curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash -s -- -p wasmedge --no-modify-shell-profile",
 	"install-dir": "wasmedge",
-	"update-command": "curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash -s -- -p wasmedge",
+	"update-command": "curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash -s -- -p wasmedge --no-modify-shell-profile",
 	"stats-parser": {
 		"execution_time_ns": "Total execution time:\\s*(?P<execution_time_ns>[0-9]+)\\s*ns",
 		"wasm_time_ns": "Wasm instructions execution time:\\s*(?P<wasm_time_ns>[0-9]+)\\s*ns",
