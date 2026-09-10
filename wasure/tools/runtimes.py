@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 
 from . import run, utils
 
@@ -333,13 +334,23 @@ def _execute_runtime_command(
         os.makedirs(runtimes_folder)
         logging.debug(f"Created {runtimes_folder} folder.")
 
-    os.chdir(runtimes_folder)
-    process = os.popen(runtime[command_key])
-    output = process.read()
+    # The command is run with cwd set to the runtimes folder rather than by
+    # chdir'ing this process into it. Changing the interpreter's working
+    # directory would leak out of this function and break any relative path
+    # resolved afterwards. stderr is deliberately left attached to the
+    # terminal so that long installs keep showing progress.
+    process = subprocess.run(
+        runtime[command_key],
+        shell=True,
+        cwd=runtimes_folder,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    output = process.stdout or ""
 
     logging.info(f"{output}")
 
-    if process.close() is None:
+    if process.returncode == 0:
         # Check that the runtime actually works
         version = _get_runtime_version(runtime["version-command"], runtimes_folder)
         if version is None:
@@ -459,16 +470,31 @@ def _get_runtime_version(command, runtimes_folder=utils.DEFAULT_RUNTIMES_FOLDER)
         str: The version of the runtime. Returns None if the version could not be determined.
     """
 
-    os.chdir(runtimes_folder)
-    process = os.popen(command)
-    output = process.read()
-    exit_code = process.close() or 0
+    # cwd is passed to the child instead of chdir'ing this process, which
+    # would leak the directory change to the rest of the run.
+    process = subprocess.run(
+        command,
+        shell=True,
+        cwd=runtimes_folder,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
 
-    if exit_code != 0:
-        logging.error(f"Failed to get version: {output}")
+    if process.returncode != 0:
+        # Keep the streams on separate lines so the message stays readable
+        # when both of them carry text.
+        details = "\n".join(
+            part for part in (process.stdout.strip(), process.stderr.strip()) if part
+        )
+        logging.error(f"Failed to get version: {details}")
         return None
 
-    return output.strip()
+    # Some runtimes report their version on stderr, so fall back to it rather
+    # than reporting a successful command as having no version at all. An
+    # empty string is still returned as-is: callers treat only None as
+    # "the command failed".
+    return process.stdout.strip() or process.stderr.strip()
 
 
 def main(args):
