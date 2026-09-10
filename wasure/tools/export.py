@@ -44,8 +44,8 @@ def _write_benchmark_results_to_csv(data, filename, memory):
 
     The input dict format is:
     {
-        "benchmark_name": {
-            "runtime1": [
+        "runtime_name": {
+            "benchmark_name": [
                 {"elapsed_time_ns": value1, "score": value2, ...},
                 ...
             ],
@@ -81,8 +81,8 @@ def _write_benchmark_results_to_csv(data, filename, memory):
 
         writer.writerow(headers)
 
-        for benchmark, runtimes in data.items():
-            for runtime, runs in runtimes.items():
+        for runtime, runtimes in data.items():
+            for benchmark, runs in runtimes.items():
                 for run_index, run in enumerate(runs):
                     row = [
                         benchmark,

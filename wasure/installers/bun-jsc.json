@@ -1,0 +1,9 @@
+{
+    "name": "Bun (JSC)",
+    "desc": "Bun runtime with JavaScriptCore engine and WASI support.",
+    "install-dir": "bun-jsc",
+    "install-command": "mkdir -p bun-jsc && curl -fsSL https://bun.sh/install | BUN_INSTALL=\"$PWD/bun-jsc\" bash && cp ../installers/bun/run.js bun-jsc/run.js",
+    "update-command": "bun-jsc/bin/bun upgrade",
+    "version-command": "bun-jsc/bin/bun --version",
+    "command": "bun-jsc/bin/bun bun-jsc/run.js {payload}"
+}

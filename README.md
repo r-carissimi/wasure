@@ -21,10 +21,12 @@
 
 ### Quick Install
 
-Install the latest released version from PyPI:
+Install the latest released version from PyPI. You can use either **pip** or **uv**:
 
 ```bash
 pip3 install wasure
+# or
+uv add wasure
 ```
 
 > [!WARNING]
@@ -38,12 +40,22 @@ pip3 install wasure
 
 ### Run Without Installing
 
-Run the project from source, without installing it. This will provide the newest version.
+Run the project from source, without installing it. This will provide the newest version. You can use either **pip** or **uv** for dependency management:
 
 ```bash
 git clone https://github.com/r-carissimi/wasure.git
 cd wasure
+```
+then:
+```bash
 pip3 install -r requirements.txt
+python3 -m wasure
+```
+or
+```bash
+uv venv                    
+source .venv/bin/activate
+uv pip install -r requirements.txt
 python3 -m wasure
 ```
 
@@ -59,10 +71,15 @@ If you want to install the newest features or fixes, install directly from the r
 ```bash
 git clone https://github.com/r-carissimi/wasure.git
 cd wasure
+```
+then:
+```bash
 pip install .
 ```
-
-
+or
+```bash
+uv pip install .
+```
 
 ## 📖 How to Use WASURE
 

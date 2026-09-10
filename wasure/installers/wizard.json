@@ -5,11 +5,11 @@
 	"install-dir": "wizard",
 	"version-command": "wizard/wizard-engine/bin/wizeng --version --help",
 	"update-command": "cd wizard/virgil && git pull && export PATH=`pwd`/bin:$PATH && make clean && make && cd ../wizard-engine && git pull && make clean && ls -hal && make -j && cp bin/wizeng.x86-64-linux bin/wizeng || cp bin/wizeng.x86-linux bin/wizeng || cp bin/wizeng.x86-darwin bin/wizeng || for f in bin/wizeng*; do case \"$f\" in bin/wizeng.jvm*);; *) cp \"$f\" bin/wizeng && break;; esac; done",
-	"command": "wizard/wizard-engine/bin/wizeng --metrics -ext:all --dir={mount_dir} {payload} {args}",
+	"command": "wizard/wizard-engine/bin/wizeng --metrics --ext:all --dir={mount_dir} {payload} {args}",
 	"subruntimes": [
         {
             "name": "wizard-int",
-            "command": "wizard/wizard-engine/bin/wizeng --metrics -ext:all --dir={mount_dir} -mode=int {payload} {args}",
+            "command": "wizard/wizard-engine/bin/wizeng --metrics --ext:all --dir={mount_dir} --mode=int {payload} {args}",
             "desc": "Wizard Engine with fast interpreter only.",
 			"stats-parser": {
 				"pregen_time_microsec": "pregen:time_us\\s*:\\s*(?P<pregen_time_microsec>[0-9]+)\\s*μs",
@@ -34,7 +34,7 @@
         },
         {
             "name": "wizard-dyn",
-            "command": "wizard/wizard-engine/bin/wizeng --metrics -ext:all --dir={mount_dir} -mode=dyn {payload} {args}",
+            "command": "wizard/wizard-engine/bin/wizeng --metrics --ext:all --dir={mount_dir} --mode=dyn {payload} {args}",
             "desc": "Wizard Engine with fast interpreter first, compile hot functions with SPC.",
 			"stats-parser": {
 				"pregen_time_microsec": "pregen:time_us\\s*:\\s*(?P<pregen_time_microsec>[0-9]+)\\s*μs",
@@ -59,7 +59,7 @@
         },
         {
             "name": "wizard-lazy",
-            "command": "wizard/wizard-engine/bin/wizeng --metrics -ext:all --dir={mount_dir} -mode=lazy {payload} {args}",
+            "command": "wizard/wizard-engine/bin/wizeng --metrics --ext:all --dir={mount_dir} --mode=lazy {payload} {args}",
             "desc": "Wizard Engine with lazy compilation of functions with SPC on first execution.",
 			"stats-parser": {
 				"pregen_time_microsec": "pregen:time_us\\s*:\\s*(?P<pregen_time_microsec>[0-9]+)\\s*μs",
@@ -84,7 +84,7 @@
         },
         {
             "name": "wizard-jit",
-            "command": "wizard/wizard-engine/bin/wizeng --metrics -ext:all --dir={mount_dir} -mode=jit {payload} {args}",
+            "command": "wizard/wizard-engine/bin/wizeng --metrics --ext:all --dir={mount_dir} --mode=jit {payload} {args}",
             "desc": "Wizard Engine with pre-compilation of modules with SPC, fallback to interpreter.",
 			"stats-parser": {
 				"pregen_time_microsec": "pregen:time_us\\s*:\\s*(?P<pregen_time_microsec>[0-9]+)\\s*μs",
@@ -109,7 +109,7 @@
         },
         {
             "name": "wizard-spc",
-            "command": "wizard/wizard-engine/bin/wizeng --metrics -ext:all --dir={mount_dir} -mode=spc {payload} {args}",
+            "command": "wizard/wizard-engine/bin/wizeng --metrics --ext:all --dir={mount_dir} --mode=spc {payload} {args}",
             "desc": "Wizard Engine with pre-compilation of modules with SPC, no fallback.",
 			"stats-parser": {
 				"pregen_time_microsec": "pregen:time_us\\s*:\\s*(?P<pregen_time_microsec>[0-9]+)\\s*μs",

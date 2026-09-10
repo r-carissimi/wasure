@@ -1,28 +1,28 @@
 {
 	"name": "wasmi",
 	"desc": "Wasmi is a WebAssembly interpreter written in Rust",
-	"install-command": "mkdir wasmi && cd wasmi && export CARGO_HOME=$PWD/.cargo && export RUSTUP_HOME=$PWD/.rustup && curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path && . $CARGO_HOME/env && git clone --recursive https://github.com/wasmi-labs/wasmi.git src && cd src && cargo build --release",
+	"install-command": "mkdir wasmi && cd wasmi && export CARGO_HOME=$PWD/.cargo && export RUSTUP_HOME=$PWD/.rustup && curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path && . $CARGO_HOME/env && git clone --recursive https://github.com/wasmi-labs/wasmi.git src && cd src && cargo build -p wasmi_cli --profile bench --no-default-features --features wat,wasi,run",
 	"install-dir": "wasmi",
 	"update-command": "cd wasmi/src && git pull && . ../.cargo/env && cargo build",
-	"command": "wasmi/src/target/release/wasmi_cli --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
+	"command": "wasmi/src/target/release/wasmi --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
 	"entrypoint-flag": "--invoke",
-	"version-command": "wasmi/src/target/release/wasmi_cli --version",
+	"version-command": "wasmi/src/target/release/wasmi --version",
 	"subruntimes": [
 		{
 			"name": "wasmi-eager",
-			"command": "wasmi/src/target/release/wasmi_cli --compilation-mode eager --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
+			"command": "wasmi/src/target/release/wasmi --compilation-mode eager --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
 			"entrypoint-flag": "--invoke",
 			"desc": "Wasmi with eager compilation mode"
 		},
 		{
 			"name": "wasmi-lazy-translation",
-			"command": "wasmi/src/target/release/wasmi_cli --compilation-mode lazy-translation --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
+			"command": "wasmi/src/target/release/wasmi --compilation-mode lazy-translation --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
 			"entrypoint-flag": "--invoke",
 			"desc": "Wasmi with lazy-translation compilation mode"
 		},
 		{
 			"name": "wasmi-lazy",
-			"command": "wasmi/src/target/release/wasmi_cli --compilation-mode lazy --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
+			"command": "wasmi/src/target/release/wasmi --compilation-mode lazy --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
 			"entrypoint-flag": "--invoke",
 			"desc": "Wasmi with lazy compilation mode"
 		}

@@ -1,0 +1,120 @@
+{
+    "benchmarks": [
+        {
+            "name": "2mm",
+            "path": "2mm.wasm"
+        },
+        {
+            "name": "3mm",
+            "path": "3mm.wasm"
+        },
+        {
+            "name": "adi",
+            "path": "adi.wasm"
+        },
+        {
+            "name": "atax",
+            "path": "atax.wasm"
+        },
+        {
+            "name": "bicg",
+            "path": "bicg.wasm"
+        },
+        {
+            "name": "cholesky",
+            "path": "cholesky.wasm"
+        },
+        {
+            "name": "correlation",
+            "path": "correlation.wasm"
+        },
+        {
+            "name": "covariance",
+            "path": "covariance.wasm"
+        },
+        {
+            "name": "doitgen",
+            "path": "doitgen.wasm"
+        },
+        {
+            "name": "durbin",
+            "path": "durbin.wasm"
+        },
+        {
+            "name": "fdtd-2d",
+            "path": "fdtd-2d.wasm"
+        },
+        {
+            "name": "floyd-warshall",
+            "path": "floyd-warshall.wasm"
+        },
+        {
+            "name": "gemm",
+            "path": "gemm.wasm"
+        },
+        {
+            "name": "gemver",
+            "path": "gemver.wasm"
+        },
+        {
+            "name": "gesummv",
+            "path": "gesummv.wasm"
+        },
+        {
+            "name": "gramschmidt",
+            "path": "gramschmidt.wasm"
+        },
+        {
+            "name": "heat-3d",
+            "path": "heat-3d.wasm"
+        },
+        {
+            "name": "jacobi-1d",
+            "path": "jacobi-1d.wasm"
+        },
+        {
+            "name": "jacobi-2d",
+            "path": "jacobi-2d.wasm"
+        },
+        {
+            "name": "lu",
+            "path": "lu.wasm"
+        },
+        {
+            "name": "ludcmp",
+            "path": "ludcmp.wasm"
+        },
+        {
+            "name": "mvt",
+            "path": "mvt.wasm"
+        },
+        {
+            "name": "nussinov",
+            "path": "nussinov.wasm"
+        },
+        {
+            "name": "seidel-2d",
+            "path": "seidel-2d.wasm"
+        },
+        {
+            "name": "symm",
+            "path": "symm.wasm"
+        },
+        {
+            "name": "syr2k",
+            "path": "syr2k.wasm"
+        },
+        {
+            "name": "syrk",
+            "path": "syrk.wasm"
+        },
+        {
+            "name": "trisolv",
+            "path": "trisolv.wasm"
+        },
+        {
+            "name": "trmm",
+            "path": "trmm.wasm"
+        }
+    ]
+}

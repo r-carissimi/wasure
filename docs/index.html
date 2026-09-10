@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wasure Benchmark Explorer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.43.3/ace.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light dark; --app-header-height: 64px;
+      --bg-primary: #fff; --bg-header: #eff1f5; --bg-row-odd: #fafbfe; --bg-row-even: #f3f5f9;
+      --bg-thead: #eff1f5; --bg-hover: #dfeaf9; --bg-control: #fff; --bg-sorted: #e8edf6;
+      --border-light: #e5e3e0; --border-medium: #d1cdc7; --border-muted: #d1d9e0b3;
+      --text-accent: #0969da; --text-muted: #333; --text-numeric: #0550ae; --text-primary: #000; --text-red: #cf222e;
+    }
+    @media (prefers-color-scheme: dark) { :root {
+      color-scheme: dark;
+      --bg-primary: #0d1117; --bg-header: #0d1117; --bg-row-odd: #0d1117; --bg-row-even: #151b23;
+      --bg-thead: #2f3751; --bg-hover: #3d4766; --bg-control: #000; --bg-sorted: #191d2b;
+      --border-light: #343746; --border-medium: #424450; --border-muted: #3d444db3;
+      --text-accent: #50fa7b; --text-muted: #99b3ff; --text-numeric: #bd93f9; --text-primary: #f8f8f2; --text-red: #ff79c6;
+    } }
+    * { box-sizing: border-box; scrollbar-width: thin;
+        scrollbar-color: color-mix(in srgb, var(--text-muted) 50%, transparent) transparent; }
+    *::-webkit-scrollbar { width: 10px; height: 10px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-muted) 45%, transparent);
+        border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+    body { margin: 0; background: var(--bg-primary); color: var(--text-primary); font-size: 14px;
+        font-family: -apple-system, BlinkMacSystemFont, Roboto, ui-sans-serif, system-ui, sans-serif; }
+    a { color: var(--text-accent); }
+    header { position: fixed; top: 0; left: 0; right: 0; height: var(--app-header-height);
+        display: flex; align-items: center; padding: 0 20px;
+        border-bottom: 1px solid var(--border-light); background: var(--bg-header); z-index: 10; }
+    header h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.02em; }
+    header h1 a { text-decoration: none; color: var(--text-accent); }
+    header h1 a:hover { text-decoration: underline; }
+    #download-csv-btn { margin-left: auto; padding: 6px 16px; font-size: 12px; font-weight: 500; cursor: pointer;
+        border: 1px solid var(--border-medium); border-radius: 6px; background: var(--bg-control); color: var(--text-primary); text-decoration: none; }
+    #download-csv-btn:hover { background: var(--bg-hover); }
+    .app-body { padding: 20px; padding-top: calc(var(--app-header-height) + 20px); }
+    #editor { width: 100%; height: 95px; min-height: 50px;
+        border: 1px solid var(--border-light); border-radius: 8px; resize: vertical; overflow: hidden; }
+    #run-btn { margin: 10px 0; padding: 6px 16px; font-size: 12px; font-weight: 500; cursor: pointer;
+        border: 1px solid var(--border-medium); border-radius: 6px; background: var(--bg-control); color: var(--text-primary); }
+    #run-btn:hover { background: var(--bg-hover); }
+    #output { margin-top: 10px; max-height: 100vh; overflow: auto; }
+    #output table { border-collapse: collapse !important; width: 100% !important; min-width: max-content; border: 0 !important; }
+    #output th, #output td { padding: 14px 12px !important; text-align: left !important; border: 0 !important;
+        border-bottom: 1px solid var(--border-muted) !important; vertical-align: middle !important;
+        font-size: 14px !important; font-family: inherit !important; }
+    #output th { font-weight: 500 !important; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.08em;
+        font-size: 11px !important; padding: 14px 12px !important; background: var(--bg-thead) !important;
+        color: var(--text-primary) !important; position: sticky; top: 0; z-index: 5; border-bottom: 0 !important;
+        cursor: pointer; }
+    #output th::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0;
+        height: 1px; background: var(--border-muted); pointer-events: none; }
+    #output tr:nth-child(odd) td { background-color: var(--bg-row-odd) !important; }
+    #output tr:nth-child(even) td { background-color: var(--bg-row-even) !important; }
+    #output tr:hover td { background-color: var(--bg-hover) !important; }
+    #output td:first-child { font-weight: 600 !important; color: var(--text-accent) !important; }
+    #output td:not(:first-child) { text-align: right !important; color: var(--text-numeric) !important; }
+    .error { color: var(--text-red); background: #fee; border: 1px solid var(--text-red);
+        padding: 10px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; }
+    .loading { color: var(--text-muted); font-style: italic; }
+    details { margin-bottom: 10px; font-size: 14px; }
+    details summary { cursor: pointer; font-weight: 500; color: var(--text-accent); }
+    details table { margin-top: 8px; font-size: 13px; }
+    details th, details td { padding: 4px 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><a href="https://github.com/mkhan45/wasure">Wasm Engine Zoo</a></h1>
+    <button id="download-csv-btn" disabled>Download CSV</button>
+  </header>
+  <div class="app-body">
+  <details>
+    <summary>Query Docs</summary>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td>raw</td><td>Table</td><td>Original CSV data</td></tr>
+      <tr><td>runs</td><td>Table</td><td>Individual successful runs (use for filtering)</td></tr>
+      <tr><td>failed</td><td>Table</td><td>Failed runs (return_code !== 0)</td></tr>
+      <tr><td>benchmarks</td><td>Table</td><td>Per-engine, per-benchmark scores</td></tr>
+      <tr><td>scores</td><td>Table</td><td>Engine × benchmark scores (ordered by total_score)</td></tr>
+      <tr><td>runtimes</td><td>Table</td><td>Engine × benchmark times in seconds (ordered by total)</td></tr>
+      <tr><td>computeScores(runs)</td><td>Function</td><td>Compute scores table from filtered runs</td></tr>
+      <tr><td>computeRuntimes(runs)</td><td>Function</td><td>Compute runtimes table from filtered runs</td></tr>
+      <tr><td>aq</td><td>Global</td><td>Arquero library</td></tr>
+      <tr><td>op</td><td>Global</td><td>Arquero operators</td></tr>
+    </table>
+    <p style="margin:12px 0 0;line-height:1.5"><strong>Scoring:</strong> For each benchmark, the geometric mean time across all engines is computed. 
+      An engine's score for a benchmark is <code>gmean / time</code> (faster = higher). 
+      Total score is the sum across benchmarks.</p>
+    <details style="margin-top:12px">
+      <summary>Filter + Recompute Examples</summary>
+      <pre style="background:var(--bg-row-even);padding:12px;border-radius:6px;overflow-x:auto;font-size:13px">// Exclude engines
+(tables) => {
+  const { runs, computeScores, computeRuntimes } = tables;
+  const filtered = runs.filter(d => d.engine !== 'wasm3');
+  return computeScores(filtered); // or computeRuntimes(filtered)
+}
+
+// Only specific benchmarks
+(tables) => {
+  const { runs, computeScores } = tables;
+  const keep = ['coremark', 'meshoptimizer'];
+  return computeScores(runs.filter(aq.escape(d => keep.includes(d.benchmark))));
+}</pre>
+    </details>
+  </details>
+  <details>
+    <summary>Benchmark Info</summary>
+    <table>
+      <tr><td>OS</td><td>Ubuntu 24.04.4 LTS x86_64</td></tr>
+      <tr><td>Kernel</td><td>6.8.0-38-generic</td></tr>
+      <tr><td>CPU</td><td>Intel i7-14700K (28) @ 5.500GHz</td></tr>
+      <tr><td>RAM</td><td>32 GB</td></tr>
+    </table>
+  </details>
+  <div id="editor">(tables) => {
+  const { runs, benchmarks, computeScores, computeRuntimes } = tables;
+  return computeScores(runs);
+}</div>
+  <button id="run-btn">Run</button>
+  <div id="output"><span class="loading">Loading data...</span></div>
+
+  <script type="module">
+    import * as aq from "https://cdn.jsdelivr.net/npm/arquero@5.4.1/+esm";
+    import { buildTables } from "./zoo.js";
+
+    const editor = ace.edit("editor");
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    editor.setTheme(isDark ? "ace/theme/dracula" : "ace/theme/chrome");
+    editor.session.setMode("ace/mode/javascript");
+    editor.setFontSize(16);
+
+    new ResizeObserver(() => editor.resize()).observe(document.getElementById("editor"));
+
+    window.aq = aq;
+    window.op = aq.op;
+    let tables = null;
+    let lastResult = null;
+    let sortCol = 1;
+    let sortDesc = true;
+
+    function renderSorted() {
+      if (!lastResult) return;
+      const output = document.getElementById("output");
+      const cols = lastResult.columnNames();
+      const col = cols[sortCol];
+      const sorted = sortDesc ? lastResult.orderby(aq.desc(col)) : lastResult.orderby(col);
+      output.innerHTML = sorted.toHTML();
+
+      const n = sortCol + 1;
+      const arrow = sortDesc ? '▼' : '▲';
+      let s = document.getElementById("sort-style");
+      if (!s) { s = document.createElement("style"); s.id = "sort-style"; document.head.appendChild(s); }
+      s.textContent =
+        `#output th:nth-child(${n}){background:var(--bg-sorted)!important}` +
+        `#output th:nth-child(${n})::before{background:var(--text-accent)!important;height:2px}` +
+        `#output th:nth-child(${n})::after{content:' ${arrow}';font-size:10px;color:var(--text-accent)}` +
+        `#output td:nth-child(${n}){background-color:var(--bg-sorted)!important}`;
+
+      output.querySelectorAll("th").forEach((th, i) => {
+        th.onclick = () => {
+          if (sortCol === i) sortDesc = !sortDesc;
+          else { sortCol = i; sortDesc = true; }
+          renderSorted();
+        };
+      });
+    }
+
+    function runQuery() {
+      const output = document.getElementById("output");
+      const code = editor.getValue();
+
+      try {
+        const query = eval(code);
+        const result = query(tables);
+
+        if (result && typeof result.toHTML === "function") {
+          lastResult = result;
+          sortCol = 1;
+          sortDesc = true;
+          renderSorted();
+        } else if (result !== undefined) {
+          lastResult = null;
+          output.innerHTML = `<pre>${JSON.stringify(result, null, 2)}</pre>`;
+        } else {
+          lastResult = null;
+          output.innerHTML = "<em>No result returned</em>";
+        }
+      } catch (e) {
+        lastResult = null;
+        output.innerHTML = `<div class="error">${e.name}: ${e.message}</div>`;
+      }
+    }
+
+    document.querySelector("#run-btn").onclick = runQuery;
+
+    document.querySelector("#download-csv-btn").onclick = () => {
+      const a = document.createElement("a");
+      a.href = "./wasure-results.csv";
+      a.download = "wasure-results.csv";
+      a.click();
+    };
+    const output = document.querySelector("#output");
+    try {
+      const response = await fetch("./wasure-results.csv");
+      const csvContent = await response.text();
+      tables = buildTables(csvContent);
+      document.querySelector("#download-csv-btn").disabled = false;
+      runQuery();
+    } catch (e) {
+      output.innerHTML = `<div class="error">Failed to load data: ${e.message}</div>`;
+    }
+  </script>
+  </div>
+</body>
+</html>
