@@ -251,6 +251,33 @@ Refer to the [Runtimes Management Documentation](docs/runtimes-management.md) fo
 - **Path Restrictions:** Installers relying on `npm` (e.g., v8, jsc, spidermonkey) may fail if the runtimes path contains spaces.
 - **Non-ASCII Characters:** JSC (JavaScriptCore) does not support payload paths with non-ASCII characters.
 
+### Runtime-specific limitations
+
+Some runtimes cannot offer everything they declare on every platform. WASURE
+detects this during installation by running a dummy payload, removes the
+configurations that do not work, and tells you which ones it dropped. A partial
+install exits non-zero; pass `--allow-partial` when that is expected.
+
+| Runtime | Limitation |
+|---|---|
+| `wamr-fast-jit`, `wamr-multi-jit` | WAMR's fast-JIT code generator is x86-64 only, so these are unavailable on arm64 (including Apple Silicon). |
+| `wamr-classic-int` | Built without SIMD, which the classic interpreter has no execution path for. Exceptions and memory64 are only available here. |
+| `wamr` | Fast interpreter: no exceptions or memory64. Use `wamr-classic-int` for those. |
+| `wizard` | The `int`/`dyn`/`lazy`/`jit`/`spc` modes exist only in the x86-64 Linux build. Elsewhere Wizard falls back to a slow interpreter, which is far slower and of limited benchmarking value. |
+| `wasm2c` | No WASI. wabt provides no WASI implementation for generated C, so only import-free suites such as `polybench-standalone` run. Generated C is also compiled without optimization, which understates it against other AOT engines. |
+| `wasmer-cranelift` | No tail-call proposal. |
+| `wasmer-singlepass` | No exceptions, relaxed-simd or tail-call proposals. |
+| `wasmtime-pulley64` | No threads; the Pulley interpreter's compiler does not support them. |
+
+To check the state of the installers on your own machine:
+
+```bash
+python scripts/audit_installers.py --all
+```
+
+It installs each runtime in isolation and reports any whose configurations were
+silently dropped. This is what the weekly `Engine health` CI job runs.
+
 
 
 ## 🤝 Contributing
