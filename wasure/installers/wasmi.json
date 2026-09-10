@@ -3,7 +3,7 @@
 	"desc": "Wasmi is a WebAssembly interpreter written in Rust",
 	"install-command": "mkdir wasmi && cd wasmi && export CARGO_HOME=$PWD/.cargo && export RUSTUP_HOME=$PWD/.rustup && curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path && . $CARGO_HOME/env && git clone --recursive https://github.com/wasmi-labs/wasmi.git src && cd src && cargo build -p wasmi_cli --profile bench --no-default-features --features wat,wasi,run",
 	"install-dir": "wasmi",
-	"update-command": "cd wasmi/src && git pull && . ../.cargo/env && cargo build",
+	"update-command": "cd wasmi && export CARGO_HOME=$PWD/.cargo && export RUSTUP_HOME=$PWD/.rustup && . $CARGO_HOME/env && cd src && git pull && cargo build -p wasmi_cli --profile bench --no-default-features --features wat,wasi,run",
 	"command": "wasmi/src/target/release/wasmi --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
 	"entrypoint-flag": "--invoke",
 	"version-command": "wasmi/src/target/release/wasmi --version",
