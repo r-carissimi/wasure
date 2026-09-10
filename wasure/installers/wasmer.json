@@ -5,33 +5,34 @@
 	"install-dir": "wasmer",
 	"version-command": "wasmer/bin/wasmer --version",
 	"update-command": "wasmer/bin/wasmer self-update",
-	"command": "wasmer/bin/wasmer run --enable-all --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
-    "entrypoint-flag": "-i",
+	"_comment": "Proposals are enabled explicitly rather than with --enable-all, because --enable-all includes module-linking, which no wasmer backend supports and which makes every module fail to load. Each backend enables the largest set it can actually compile: singlepass additionally rejects exceptions, relaxed-simd and tail-call, and cranelift rejects tail-call.",
+	"command": "wasmer/bin/wasmer run --enable-bulk-memory --enable-multi-value --enable-reference-types --enable-simd --enable-extended-const --enable-multi-memory --enable-exceptions --enable-relaxed-simd --enable-tail-call --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
+	"entrypoint-flag": "-i",
 	"subruntimes": [
 		{
 			"name": "wasmer-llvm",
-			"command": "wasmer/bin/wasmer run --enable-all --llvm --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
+			"command": "wasmer/bin/wasmer run --enable-bulk-memory --enable-multi-value --enable-reference-types --enable-simd --enable-extended-const --enable-multi-memory --enable-exceptions --enable-relaxed-simd --enable-tail-call --llvm --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
 			"entrypoint-flag": "-i",
-            "desc": "Wasmer with LLVM backend."
+			"desc": "Wasmer with LLVM backend."
 		},
 		{
 			"name": "wasmer-cranelift",
-			"command": "wasmer/bin/wasmer run --enable-all --cranelift --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
+			"command": "wasmer/bin/wasmer run --enable-bulk-memory --enable-multi-value --enable-reference-types --enable-simd --enable-extended-const --enable-multi-memory --enable-exceptions --enable-relaxed-simd --cranelift --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
 			"entrypoint-flag": "-i",
-            "desc": "Wasmer with Cranelift backend."
+			"desc": "Wasmer with Cranelift backend. Does not support the tail-call proposal."
 		},
 		{
 			"name": "wasmer-singlepass",
-			"command": "wasmer/bin/wasmer run --enable-all --singlepass --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
+			"command": "wasmer/bin/wasmer run --enable-bulk-memory --enable-multi-value --enable-reference-types --enable-simd --enable-extended-const --enable-multi-memory --singlepass --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
 			"entrypoint-flag": "-i",
-            "desc": "Wasmer with Singlepass backend."
+			"desc": "Wasmer with Singlepass backend. Does not support the exceptions, relaxed-simd or tail-call proposals."
 		},
 		{
 			"name": "wasmer-aot",
-			"command": "wasmer/bin/wasmer run --enable-all --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
+			"command": "wasmer/bin/wasmer run --enable-bulk-memory --enable-multi-value --enable-reference-types --enable-simd --enable-extended-const --enable-multi-memory --enable-exceptions --enable-relaxed-simd --enable-tail-call --dir {mount_dir} {entrypoint_flag} {entrypoint} {payload} {args}",
 			"desc": "Wasmer with AOT",
 			"entrypoint-flag": "-i",
-            "aot-command": "wasmer/bin/wasmer compile -o {output} {input}"
+			"aot-command": "wasmer/bin/wasmer compile -o {output} {input}"
 		}
 	]
 }
