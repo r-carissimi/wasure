@@ -1,5 +1,12 @@
 {
+  "name": "wasure-docs",
+  "private": true,
+  "type": "module",
+  "description": "Data pipeline for the Wasure benchmark explorer in docs/",
+  "scripts": {
+    "test": "node docs/test-zoo.js"
+  },
   "dependencies": {
-    "arquero": "^8.0.3"
+    "arquero": "8.0.3"
   }
 }

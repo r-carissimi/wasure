@@ -127,7 +127,9 @@
   <div id="output"><span class="loading">Loading data...</span></div>
 
   <script type="module">
-    import * as aq from "https://cdn.jsdelivr.net/npm/arquero@5.4.1/+esm";
+    // Must match the version imported by zoo.js, otherwise the browser loads
+    // two copies of arquero and tables built by one are not usable by the other.
+    import * as aq from "https://cdn.jsdelivr.net/npm/arquero@8.0.3/+esm";
     import { buildTables } from "./zoo.js";
 
     const editor = ace.edit("editor");
